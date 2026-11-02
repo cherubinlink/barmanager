@@ -1,0 +1,29 @@
+{% extends "navigateur/base_auth.html" %}
+
+{% block title %}Aucun bar{% endblock %}
+
+{% block extra_css %}
+<style>
+  .nb-ico { width: 72px; height: 72px; display: grid; place-items: center; font-size: 2rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); margin-bottom: 1.25rem; }
+  .nb-help { margin-top: 1.5rem; padding: 1rem 1.15rem; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); font-size: .94rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="nb-ico"><i class="bi bi-cup-straw"></i></div>
+<h1>Aucun bar pour le moment</h1>
+<p class="au-sub">Votre compte{% if user.is_authenticated %} <b>{{ user.get_username }}</b>{% endif %} n'est rattaché à aucun bar actif.</p>
+
+<div class="d-grid gap-2">
+  {% url 'accounts:new_bar' as new_bar_url %}
+  {% if new_bar_url %}<a href="{{ new_bar_url }}" class="btn btn-primary btn-lg"><i class="bi bi-plus-circle"></i> Créer mon bar</a>{% endif %}
+  {% url 'accounts:logout' as logout_url %}
+  {% if logout_url %}
+  <form method="post" action="{{ logout_url }}">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary btn-lg w-100 rounded-pill">Se déconnecter</button></form>
+  {% endif %}
+</div>
+
+<div class="nb-help">
+  <i class="bi bi-info-circle"></i> Vous avez été invité dans un bar ? Demandez au gérant de vérifier que votre accès est actif, puis reconnectez-vous.
+</div>
+{% endblock %}

@@ -1,0 +1,317 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_sub %}{{ intro }} Journée du {{ day|date:"l j F Y" }}.{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Actions rapides */
+  .qa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .75rem; margin-bottom: 2rem; }
+  .qa { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; padding: 1rem; text-decoration: none; color: var(--ink);
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); font-weight: 600;
+        transition: transform .25s var(--ease), border-color .25s, background .25s; }
+  .qa .qa-ico { font-size: 1.7rem; line-height: 1; }
+  a.qa:hover { transform: translateY(-3px); border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+  .qa.disabled { opacity: .45; cursor: not-allowed; }
+
+  /* Blocs */
+  .blk-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: .9rem; }
+  .blk-title h2 { font-size: calc(1.1rem * var(--title-scale)); font-weight: 700; margin: 0; }
+  .stat .value small { font-size: .5em; color: var(--muted); font-weight: 600; }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li { display: flex; justify-content: space-between; gap: 1rem; padding: .6rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .rows li:last-child { border-bottom: 0; }
+  .rows .sub { display: block; color: var(--muted); font-size: .82rem; }
+  .rows b { white-space: nowrap; }
+  .empty { color: var(--muted); margin: 0; padding: .5rem 0; }
+  .alert-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #E5534B; margin-right: .4rem; }
+
+  /* Abonnement */
+  .sub-alert { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; border-radius: var(--radius); border: 1px solid; }
+  .sub-alert i { font-size: 1.4rem; }
+  .sub-alert .msg { flex: 1; min-width: 220px; }
+  .sub-alert.lvl-warning { background: rgba(232,153,28,.14); border-color: #E8991C; }
+  .sub-alert.lvl-danger { background: rgba(229,83,75,.14); border-color: #E5534B; }
+  .stat.lvl-ok .value { color: #3FAE6A; } .stat.lvl-warning .value { color: #E8991C; } .stat.lvl-danger .value { color: #E5534B; }
+
+  /* Ventes de la semaine */
+  .wk { display: flex; align-items: flex-end; gap: .6rem; height: 170px; padding-top: .5rem; }
+  .wk-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: .4rem; }
+  .wk-bar { width: 100%; min-height: 4px; height: var(--h, 4%); background: var(--accent); border-radius: 8px 8px 3px 3px; transition: height .8s var(--ease); }
+  .wk-lbl { font-size: .78rem; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  {% if add_member_url %}
+    <a href="{{ add_member_url }}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Ajouter un collaborateur</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{# ===== Alerte d'abonnement (7 jours ou moins, ou expiré) ===== #}
+{% if subscription_info and subscription_info.level != "ok" %}
+<div class="sub-alert lvl-{{ subscription_info.level }}" role="alert">
+  <i class="bi bi-{% if subscription_info.expired %}lock{% else %}hourglass-split{% endif %}"></i>
+  <div class="msg">
+    {% if subscription_info.expired %}
+      <b>Votre abonnement a expiré.</b> Le compte est en lecture seule : vos données restent accessibles.
+    {% else %}
+      <b>Il vous reste {{ subscription_info.days }} jour{{ subscription_info.days|pluralize }} d'abonnement.</b>
+      Pensez à régler pour éviter le passage en lecture seule.
+    {% endif %}
+  </div>
+  {% if membership.is_owner %}
+    {% url 'tenants:subscription' as renew_url %}
+    {% if renew_url %}<a href="{{ renew_url }}" class="btn btn-primary">Renouveler</a>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{# ===== Actions rapides (selon les permissions) ===== #}
+{% if actions %}
+<div class="qa-grid">
+  {% for a in actions %}
+    {% if a.url %}
+      <a href="{{ a.url }}" class="qa"><span class="qa-ico">{{ a.icon }}</span><span>{{ a.label }}</span></a>
+    {% else %}
+      <span class="qa disabled" aria-disabled="true" title="Bientôt disponible"><span class="qa-ico">{{ a.icon }}</span><span>{{ a.label }}</span></span>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not data %}
+  <div class="card-bar text-center">
+    <p class="empty">Aucun bloc n'est disponible pour votre rôle. Demandez au gérant de vous attribuer des permissions.</p>
+  </div>
+{% endif %}
+
+{# ===== Chiffres clés ===== #}
+<div class="row g-3 mb-4">
+  {% if subscription_info and membership.is_owner %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat lvl-{{ subscription_info.level }}">
+    <span class="label">Abonnement</span>
+    {% if subscription_info.expired %}
+      <span class="value">Expiré</span>
+      <span class="label">Depuis {{ subscription_info.days_abs }} jour{{ subscription_info.days_abs|pluralize }}</span>
+    {% else %}
+      <span class="value">{{ subscription_info.days }} <small>jour{{ subscription_info.days|pluralize }}</small></span>
+      <span class="label">{{ subscription_info.label }}, jusqu'au {{ subscription_info.end|date:"j F Y" }}</span>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {% if data.sales_today %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Ventes du jour</span>
+    <span class="value">{{ data.sales_today.total|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.sales_today.count|default:0 }} ticket{{ data.sales_today.count|default:0|pluralize }}</span>
+  </div></div>
+  {% endif %}
+
+  {% if data.my_sales %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Mes ventes</span>
+    <span class="value">{{ data.my_sales.total|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.my_sales.count|default:0 }} ticket{{ data.my_sales.count|default:0|pluralize }}</span>
+  </div></div>
+  {% endif %}
+
+  {% if data.open_tickets %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Tickets ouverts</span>
+    <span class="value">{{ data.open_tickets.count|default:0 }}</span>
+    <span class="label">En attente de paiement</span>
+  </div></div>
+  {% endif %}
+
+  {% if data.qr_pending %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Commandes QR à valider</span>
+    <span class="value">{{ data.qr_pending.count|default:0 }}</span>
+    <span class="label">{% if data.qr_pending.count %}<span class="alert-dot"></span>À traiter{% else %}Rien en attente{% endif %}</span>
+  </div></div>
+  {% endif %}
+
+  {% if data.stock_value %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Valeur du stock</span>
+    <span class="value">{{ data.stock_value.total|floatformat:"0g" }} <small>FCFA</small></span>
+  </div></div>
+  {% endif %}
+
+  {% if data.receivables %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Crédits clients à recevoir</span>
+    <span class="value">{{ data.receivables.total|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.receivables.count|default:0 }} dossier{{ data.receivables.count|default:0|pluralize }}</span>
+  </div></div>
+  {% endif %}
+
+  {% if data.payables %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Dettes fournisseurs</span>
+    <span class="value">{{ data.payables.total|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.payables.count|default:0 }} à payer</span>
+  </div></div>
+  {% endif %}
+
+  {% if data.pending_losses %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Pertes à valider</span>
+    <span class="value">{{ data.pending_losses.count|default:0 }}</span>
+    <span class="label">Casse déclarée</span>
+  </div></div>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+
+  {# ===== Ventes de la semaine ===== #}
+  {% if data.sales_week %}
+  <div class="col-lg-8"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Ventes de la semaine</h2></div>
+    {% localize off %}
+    <div class="wk" id="weekChart">
+      {% for d in data.sales_week.rows %}
+      <div class="wk-col" title="{{ d.total|floatformat:'0g' }} FCFA">
+        <div class="wk-bar" data-v="{{ d.total|default:0 }}"></div>
+        <span class="wk-lbl">{{ d.label }}</span>
+      </div>
+      {% empty %}<p class="empty">Aucune vente cette semaine.</p>{% endfor %}
+    </div>
+    {% endlocalize %}
+  </div></div>
+  {% endif %}
+
+  {# ===== Paiements par mode ===== #}
+  {% if data.payments_by_method %}
+  <div class="col-lg-4"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Encaissé par mode</h2></div>
+    <ul class="rows">
+      {% for p in data.payments_by_method.rows %}
+        <li><span>{{ p.method }}</span><b>{{ p.total|floatformat:"0g" }} FCFA</b></li>
+      {% empty %}<li class="empty">Aucun encaissement aujourd'hui.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Produits les plus vendus ===== #}
+  {% if data.top_products %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Produits les plus vendus</h2></div>
+    <ul class="rows">
+      {% for p in data.top_products.rows %}
+        <li><span>{{ p.name }}<span class="sub">{{ p.qty }} vendu{{ p.qty|pluralize }}</span></span><b>{{ p.total|floatformat:"0g" }} FCFA</b></li>
+      {% empty %}<li class="empty">Pas encore de ventes.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Stock bas ===== #}
+  {% if data.low_stock %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Stock bas</h2></div>
+    <ul class="rows">
+      {% for p in data.low_stock.rows %}
+        <li><span><span class="alert-dot"></span>{{ p.name }}</span><b>{{ p.stock }} restant{{ p.stock|pluralize }}</b></li>
+      {% empty %}<li class="empty">Aucune alerte : le stock est suffisant.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Tickets ouverts ===== #}
+  {% if data.open_tickets %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Commandes en cours</h2></div>
+    <ul class="rows">
+      {% for t in data.open_tickets.rows %}
+        <li><span>{{ t.name }}</span><b>{{ t.total|floatformat:"0g" }} FCFA</b></li>
+      {% empty %}<li class="empty">Aucun ticket ouvert.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Commandes QR ===== #}
+  {% if data.qr_pending %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Commandes QR en attente</h2></div>
+    <ul class="rows">
+      {% for t in data.qr_pending.rows %}
+        <li><span>{{ t.name }}</span><b>{{ t.total|floatformat:"0g" }} FCFA</b></li>
+      {% empty %}<li class="empty">Aucune commande QR à valider.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Commandes fournisseurs à réceptionner ===== #}
+  {% if data.purchase_to_receive %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>À réceptionner</h2></div>
+    <ul class="rows">
+      {% for o in data.purchase_to_receive.rows %}
+        <li><span>{{ o.supplier }}<span class="sub">Commande {{ o.reference }}</span></span><b>{{ o.total|floatformat:"0g" }} FCFA</b></li>
+      {% empty %}<li class="empty">Aucune commande en attente de réception.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Dernières réceptions ===== #}
+  {% if data.recent_receptions %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Dernières réceptions</h2></div>
+    <ul class="rows">
+      {% for r in data.recent_receptions.rows %}
+        <li><span>{{ r.supplier }}<span class="sub">{{ r.date|date:"j F" }}</span></span><b>{{ r.reference }}</b></li>
+      {% empty %}<li class="empty">Aucune réception récente.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Pertes à valider ===== #}
+  {% if data.pending_losses %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Pertes à valider</h2></div>
+    <ul class="rows">
+      {% for l in data.pending_losses.rows %}
+        <li><span>{{ l.product }}<span class="sub">{{ l.reason }}</span></span><b>{{ l.qty }}</b></li>
+      {% empty %}<li class="empty">Aucune perte en attente.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+  {# ===== Équipe ===== #}
+  {% if data.team %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Équipe</h2>{% if add_member_url %}<a href="{{ add_member_url }}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-person-plus"></i> Ajouter</a>{% endif %}</div>
+    <ul class="rows">
+      {% for m in data.team.rows %}
+        <li><span>{{ m.name }}</span><b>{{ m.role }}</b></li>
+      {% empty %}<li class="empty">Aucun collaborateur pour le moment.</li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Hauteur des barres de la semaine, proportionnelle au meilleur jour
+  (function () {
+    var bars = document.querySelectorAll('#weekChart .wk-bar');
+    if (!bars.length) return;
+    var max = Math.max.apply(null, Array.prototype.map.call(bars, function (b) { return parseFloat(b.dataset.v) || 0; }));
+    requestAnimationFrame(function () {
+      bars.forEach(function (b) {
+        var v = parseFloat(b.dataset.v) || 0;
+        b.style.setProperty('--h', (max ? Math.max(v / max * 100, 3) : 3) + '%');
+      });
+    });
+  })();
+</script>
+{% endblock %}

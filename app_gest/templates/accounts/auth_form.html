@@ -1,0 +1,83 @@
+{% extends "navigateur/base_auth.html" %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+{% if subtitle %}<p class="au-sub">{{ subtitle }}</p>{% else %}<p class="au-sub"></p>{% endif %}
+
+<form method="post" class="auth-form" novalidate>
+  {% csrf_token %}
+  {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+  {% endif %}
+
+  <div class="fields">
+    {% if form.username %}<div class="group-title">Votre compte</div>{% endif %}
+
+    {% for field in form.visible_fields %}
+      {% if field.name == "bar_name" and form.username %}<div class="group-title">Votre bar</div>{% endif %}
+      <div class="field {% if field.name in 'first_name last_name password1 password2 client_code city' %}half{% endif %} {% if field.errors %}has-error{% endif %}">
+        <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="text-secondary fw-normal">(facultatif)</span>{% endif %}</label>
+        {{ field }}
+        {% if field.errors %}{% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}{% endif %}
+        {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <button type="submit" class="btn btn-primary btn-lg w-100 mt-4">{{ submit|default:"Valider" }}</button>
+</form>
+
+{% if alt_url %}
+  <p class="au-alt"><a href="{% url alt_url %}">{{ alt_text }}</a></p>
+{% elif user.is_authenticated %}
+  {% url 'dashboard:home' as home_url %}
+  {% if home_url %}<p class="au-alt"><a href="{{ home_url }}">Retour au tableau de bord</a></p>{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var form = document.querySelector('.auth-form');
+  if (!form) return;
+
+  // Style Bootstrap sur les champs rendus par Django
+  form.querySelectorAll('input, select, textarea').forEach(function (el) {
+    if (['hidden', 'checkbox', 'radio'].indexOf(el.type) !== -1) return;
+    el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+    if (el.closest('.has-error')) el.classList.add('is-invalid');
+  });
+
+  // Afficher / masquer les mots de passe
+  form.querySelectorAll('input[type=password]').forEach(function (inp) {
+    var wrap = document.createElement('div'); wrap.className = 'pw';
+    inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(inp);
+    var b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', 'Afficher le mot de passe');
+    b.innerHTML = '<i class="bi bi-eye"></i>';
+    b.addEventListener('click', function () {
+      var show = inp.type === 'password'; inp.type = show ? 'text' : 'password';
+      b.innerHTML = '<i class="bi bi-eye' + (show ? '-slash' : '') + '"></i>';
+    });
+    wrap.appendChild(b);
+  });
+
+  // Code client : majuscules, et proposition automatique depuis le nom du bar
+  var name = form.querySelector('[name=bar_name]'), code = form.querySelector('[name=client_code]');
+  if (code) {
+    var touched = !!code.value;
+    code.style.textTransform = 'uppercase';
+    code.addEventListener('input', function () { touched = true; code.value = code.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''); });
+    if (name) name.addEventListener('input', function () {
+      if (touched) return;
+      code.value = name.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
+    });
+  }
+
+  // Focus sur le premier champ en erreur, sinon sur le premier champ
+  var first = form.querySelector('.is-invalid') || form.querySelector('input:not([type=hidden])');
+  if (first) first.focus();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,104 @@
+/* Page d'accueil publique — complète bar.css */
+.lp { background: var(--bg); }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+
+/* Navigation */
+.lp-nav { position: sticky; top: 0; z-index: 1030; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.lp-nav-in { display: flex; align-items: center; gap: 1.5rem; padding-block: .7rem; }
+.lp-links { gap: 1.5rem; margin-left: 1rem; }
+.lp-links a { color: var(--muted); text-decoration: none; font-weight: 500; transition: color .2s; }
+.lp-links a:hover { color: var(--ink); }
+.lp-nav-actions { margin-left: auto; display: flex; align-items: center; gap: .6rem; }
+.lp-nav .btn-link { color: var(--ink); }
+.brand-mark.sm { width: 34px; height: 34px; font-size: 1rem; }
+
+/* Hero */
+.hero { padding: clamp(2.5rem, 7vw, 6rem) 0; position: relative; overflow: hidden; }
+.hero::before { content: ""; position: absolute; width: 640px; height: 640px; right: -180px; top: -200px; border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-soft), transparent 68%); pointer-events: none; }
+.hero-title { font-weight: 800; font-size: clamp(2.2rem, 5.2vw, 3.9rem); line-height: 1.04; margin-bottom: 1.25rem; }
+.hero-lead { font-size: 1.15rem; color: var(--muted); max-width: 34rem; margin-bottom: 1.75rem; }
+.hero-note { color: var(--muted); font-size: .92rem; }
+.hero-note i { color: var(--accent); }
+.btn-lg { padding: .8rem 1.6rem; }
+
+/* Ticket (moment fort de la page) */
+.ticket { position: relative; max-width: 420px; margin-inline: auto; padding: 1.5rem 1.5rem 1.25rem; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--shadow), 0 30px 60px -30px rgba(0,0,0,.35); transform: rotate(1.8deg); }
+.ticket::after { content: ""; position: absolute; left: 0; right: 0; bottom: -9px; height: 10px;
+  background: radial-gradient(circle at 8px -1px, transparent 7px, var(--surface) 8px) repeat-x; background-size: 16px 10px; }
+.ticket-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 1rem; border-bottom: 2px dashed var(--line); }
+.ticket-name { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; }
+.ticket-sub { color: var(--muted); font-size: .88rem; }
+.ticket-lines { list-style: none; margin: 1rem 0; padding: 0; display: grid; gap: .65rem; font-variant-numeric: tabular-nums; }
+.ticket-lines li { display: flex; justify-content: space-between; gap: 1rem; }
+.ticket-lines li.late span { color: var(--accent); font-weight: 600; }
+.ticket-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 1rem; border-top: 2px dashed var(--line); font-family: var(--font-display); }
+.ticket-total b { font-size: 1.7rem; font-weight: 800; color: var(--accent); }
+.ticket-foot { margin-top: 1rem; font-size: .85rem; color: var(--muted); }
+.ticket-lines li, .ticket-total, .ticket-foot { animation: ticketIn .5s var(--ease) both; animation-delay: calc(var(--i) * .55s + .3s); }
+@keyframes ticketIn { from { opacity: 0; transform: translateY(8px); } }
+
+/* Sections */
+.lp-section { padding: clamp(3rem, 7vw, 5.5rem) 0; }
+.lp-alt { background: var(--surface); border-block: 1px solid var(--line); }
+.lp-head { max-width: 40rem; margin-bottom: 2.5rem; }
+.lp-h2 { font-weight: 800; font-size: calc(clamp(1.7rem, 3.4vw, 2.5rem) * var(--title-scale)); margin-bottom: .75rem; }
+.lp-lead { color: var(--muted); font-size: 1.05rem; }
+
+.problem { display: flex; gap: .9rem; align-items: flex-start; }
+.problem i { color: #E5534B; font-size: 1.3rem; margin-top: .1rem; }
+
+/* Fonctionnalités */
+.feature { display: flex; flex-direction: column; }
+.feature-icon { width: 52px; height: 52px; display: grid; place-items: center; font-size: 1.6rem; background: var(--accent-soft); border-radius: calc(var(--radius) * .7); margin-bottom: 1rem; }
+.feature h3 { font-size: calc(1.2rem * var(--title-scale)); font-weight: 700; }
+.feature-text { color: var(--muted); }
+.ticks { list-style: none; padding: 0; margin: auto 0 0; display: grid; gap: .5rem; font-size: .93rem; }
+.ticks li { position: relative; padding-left: 1.55rem; }
+.ticks li::before { content: "\F26E"; font-family: "bootstrap-icons"; position: absolute; left: 0; top: 0; color: var(--accent); }
+
+/* Étapes : vraie séquence, donc numérotée */
+.steps { list-style: none; padding: 0; margin: 0; max-width: 46rem; position: relative; }
+.steps::before { content: ""; position: absolute; left: 21px; top: 10px; bottom: 10px; width: 2px; background: var(--line); }
+.step { position: relative; display: flex; gap: 1.25rem; padding-bottom: 1.75rem; }
+.step:last-child { padding-bottom: 0; }
+.step-n { flex: none; z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; font-family: var(--font-display); font-weight: 800;
+  background: var(--accent); color: var(--accent-ink); border-radius: 50%; box-shadow: 0 0 0 6px var(--surface); }
+.step h3 { font-size: calc(1.15rem * var(--title-scale)); margin: .5rem 0 .25rem; }
+.step p { color: var(--muted); margin: 0; }
+
+/* Rôles */
+.role-avatar { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); font-family: var(--font-display); font-weight: 800; color: var(--accent); margin-bottom: .9rem; }
+.role h3 { font-size: calc(1.15rem * var(--title-scale)); }
+.role p { color: var(--muted); font-size: .94rem; }
+
+/* Tarifs */
+.plan { display: flex; flex-direction: column; text-align: center; }
+.plan h3 { font-size: calc(1.2rem * var(--title-scale)); }
+.plan-price { font-family: var(--font-display); font-weight: 800; font-size: calc(2.6rem * var(--title-scale)); line-height: 1.1; }
+.plan-price small { font-size: 1rem; color: var(--muted); font-weight: 500; }
+.plan-dur { color: var(--muted); }
+.plan-main { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
+
+/* FAQ */
+.faq { max-width: 46rem; --bs-accordion-bg: var(--surface); --bs-accordion-border-color: var(--line); --bs-accordion-color: var(--ink);
+  --bs-accordion-btn-bg: var(--surface); --bs-accordion-btn-color: var(--ink); --bs-accordion-active-bg: var(--accent-soft); --bs-accordion-active-color: var(--ink);
+  --bs-accordion-btn-focus-box-shadow: 0 0 0 4px var(--accent-soft); --bs-accordion-border-radius: var(--radius); }
+.faq .accordion-button { font-weight: 600; }
+[data-bs-theme="dark"] .faq .accordion-button::after { filter: invert(1); }
+
+/* Appel final */
+.final-cta { text-align: center; padding: clamp(2.5rem, 6vw, 4.5rem) 1.5rem; border-radius: calc(var(--radius) * 1.5); background: var(--accent); color: var(--accent-ink); }
+.final-cta h2 { font-weight: 800; font-size: calc(clamp(1.7rem, 3.6vw, 2.6rem) * var(--title-scale)); max-width: 30rem; margin: 0 auto .75rem; color: inherit; }
+.final-cta p { max-width: 32rem; margin: 0 auto 1.75rem; opacity: .85; }
+.final-btn { background: var(--accent-ink); color: #fff; border-radius: 999px; font-weight: 600; }
+.final-btn:hover { background: var(--accent-ink); color: #fff; filter: brightness(1.25); }
+
+/* Pied de page */
+.lp-footer { padding: 2rem 0 2.5rem; border-top: 1px solid var(--line); }
+.lp-contact { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+.lp-contact a { color: var(--muted); text-decoration: none; }
+.lp-contact a:hover { color: var(--accent); }
+
+@media (max-width: 575.98px) { .ticket { transform: none; } }

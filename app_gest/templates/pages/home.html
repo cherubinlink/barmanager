@@ -1,0 +1,268 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" data-bs-theme="light" data-accent="ambre">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ site_name }} : gérez votre bar, de la caisse au stock</title>
+  <meta name="description" content="{{ site_name }} gère les commandes, le stock, les crédits et les pertes de votre bar. Essai gratuit de {{ trial_days }} jours.">
+
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('bar:settings') || '{}');
+        var t = s.theme || 'auto';
+        if (t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-bs-theme', t);
+        if (s.accent) document.documentElement.setAttribute('data-accent', s.accent);
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'css/bar.css' %}" rel="stylesheet">
+  <link href="{% static 'css/landding.css' %}" rel="stylesheet">
+</head>
+<body class="lp">
+
+<!-- ===== Navigation ===== -->
+<header class="lp-nav">
+  <div class="container lp-nav-in">
+    <a href="#top" class="brand">
+      <span class="brand-mark"><i class="bi bi-cup-straw"></i></span>
+      <span class="brand-name">{{ site_name }}</span>
+    </a>
+    <nav class="lp-links d-none d-lg-flex">
+      <a href="#fonctions">Fonctions</a>
+      <a href="#etapes">Démarrer</a>
+      <a href="#roles">Équipe</a>
+      <a href="#tarifs">Tarifs</a>
+      <a href="#faq">Questions</a>
+    </nav>
+    <div class="lp-nav-actions">
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème">
+        <i class="bi bi-moon-stars theme-icon-light"></i>
+        <i class="bi bi-brightness-high theme-icon-dark"></i>
+      </button>
+      {% if user.is_authenticated %}
+        <a href="{{ dashboard_url }}" class="btn btn-primary">Mon tableau de bord</a>
+      {% else %}
+        <a href="{{ login_url }}" class="btn btn-link text-decoration-none d-none d-sm-inline">Connexion</a>
+        <a href="{{ register_url }}" class="btn btn-primary">Essai gratuit</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ===== Hero ===== -->
+<section class="hero">
+  <div class="container">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <h1 class="hero-title">Chaque bouteille comptée, chaque ardoise suivie.</h1>
+        <p class="hero-lead">{{ site_name }} réunit la caisse, le stock, les crédits et les pertes de votre bar dans une seule application, utilisable sur téléphone.</p>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% if user.is_authenticated %}
+            <a href="{{ dashboard_url }}" class="btn btn-primary btn-lg">Ouvrir mon bar</a>
+          {% else %}
+            <a href="{{ register_url }}" class="btn btn-primary btn-lg">Essayer {{ trial_days }} jours gratuitement</a>
+            <a href="#fonctions" class="btn btn-outline-secondary btn-lg rounded-pill">Voir les fonctions</a>
+          {% endif %}
+        </div>
+        <p class="hero-note"><i class="bi bi-check2-circle"></i> Sans engagement, vos données restent accessibles après l'essai.</p>
+      </div>
+
+      <!-- Ticket de caisse animé -->
+      <div class="col-lg-6">
+        <div class="ticket" aria-label="Exemple de ticket de caisse">
+          <div class="ticket-head">
+            <div>
+              <div class="ticket-name">ClientA3</div>
+              <div class="ticket-sub">Table 4, ouvert à 19h42</div>
+            </div>
+            <span class="chip chip-biere">En cours</span>
+          </div>
+          <ul class="ticket-lines">
+            <li style="--i:1"><span>2 × Bière 65cl</span><b>1 600</b></li>
+            <li style="--i:2"><span>1 × Jus de bissap</span><b>500</b></li>
+            <li style="--i:3"><span>1 × Whisky, 1 mesure</span><b>1 500</b></li>
+            <li style="--i:4" class="late"><span>1 × Bière 65cl, ajoutée</span><b>800</b></li>
+          </ul>
+          <div class="ticket-total" style="--i:5"><span>Total à payer</span><b>4 400 FCFA</b></div>
+          <div class="ticket-foot" style="--i:6"><i class="bi bi-hourglass-split"></i> Facture en attente, le client consomme encore</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Problèmes ===== -->
+<section class="lp-section lp-alt">
+  <div class="container">
+    <div class="row g-4 align-items-start">
+      <div class="col-lg-5">
+        <h2 class="lp-h2">Ce qui coûte de l'argent à un bar, tous les jours</h2>
+        <p class="lp-lead">Un cahier ou un tableur ne suffit plus dès que deux personnes servent en même temps.</p>
+      </div>
+      <div class="col-lg-7">
+        <div class="row g-3">
+          {% for p in problems %}
+          <div class="col-sm-6">
+            <div class="card-bar problem h-100"><i class="bi bi-exclamation-triangle"></i><p class="mb-0">{{ p }}</p></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Fonctionnalités ===== -->
+<section class="lp-section" id="fonctions">
+  <div class="container">
+    <div class="lp-head">
+      <h2 class="lp-h2">Tout ce qu'il faut pour tenir un bar</h2>
+      <p class="lp-lead">Dix modules qui partagent les mêmes données : une vente met le stock à jour, une casse corrige la marge.</p>
+    </div>
+    <div class="row g-4">
+      {% for f in features %}
+      <div class="col-md-6 col-xl-4">
+        <article class="card-bar feature hoverable h-100">
+          <div class="feature-icon">{{ f.icon }}</div>
+          <h3>{{ f.title }}</h3>
+          <p class="feature-text">{{ f.text }}</p>
+          <ul class="ticks">
+            {% for b in f.bullets %}<li>{{ b }}</li>{% endfor %}
+          </ul>
+        </article>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ===== Étapes ===== -->
+<section class="lp-section lp-alt" id="etapes">
+  <div class="container">
+    <div class="lp-head">
+      <h2 class="lp-h2">Du compte créé à l'inventaire du soir</h2>
+      <p class="lp-lead">Cinq étapes, dans cet ordre.</p>
+    </div>
+    <ol class="steps">
+      {% for title, text in steps %}
+      <li class="step">
+        <span class="step-n">{{ forloop.counter }}</span>
+        <div><h3>{{ title }}</h3><p>{{ text }}</p></div>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+<!-- ===== Rôles ===== -->
+<section class="lp-section" id="roles">
+  <div class="container">
+    <div class="lp-head">
+      <h2 class="lp-h2">Chacun voit ce qui le concerne</h2>
+      <p class="lp-lead">Quatre rôles prêts à l'emploi, que vous pouvez adapter permission par permission.</p>
+    </div>
+    <div class="row g-3">
+      {% for name, text in roles %}
+      <div class="col-sm-6 col-lg-3">
+        <div class="card-bar role h-100">
+          <div class="role-avatar">{{ name|slice:":1" }}</div>
+          <h3>{{ name }}</h3>
+          <p class="mb-0">{{ text }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ===== Tarifs ===== -->
+<section class="lp-section lp-alt" id="tarifs">
+  <div class="container">
+    <div class="lp-head">
+      <h2 class="lp-h2">Des tarifs simples</h2>
+      <p class="lp-lead">Les {{ trial_days }} premiers jours sont gratuits. Ensuite, choisissez la formule qui vous convient.</p>
+    </div>
+    <div class="row g-4 justify-content-center">
+      {% for plan in plans %}
+      <div class="col-md-6 col-lg-4">
+        <div class="card-bar plan h-100 {% if forloop.counter == 2 %}plan-main{% endif %}">
+          <h3>{{ plan.name }}</h3>
+          <div class="plan-price">{{ plan.price }} <small>FCFA</small></div>
+          {% if plan.duration_days %}<p class="plan-dur">pour {{ plan.duration_days }} jours</p>{% endif %}
+          {% if plan.description %}<p>{{ plan.description }}</p>{% endif %}
+          <a href="{{ register_url }}" class="btn {% if forloop.counter == 2 %}btn-primary{% else %}btn-outline-secondary rounded-pill{% endif %} w-100 mt-auto">Commencer l'essai</a>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-md-8 text-center">
+        <div class="card-bar">
+          <p class="mb-3">Les tarifs seront affichés ici prochainement. Contactez-nous pour connaître l'offre en vigueur.</p>
+          <a href="{{ register_url }}" class="btn btn-primary">Commencer l'essai gratuit</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="text-center text-secondary mt-4 mb-0">Paiement manuel, par exemple Mobile Money : vous déclarez le paiement, l'administrateur le valide.</p>
+  </div>
+</section>
+
+<!-- ===== FAQ ===== -->
+<section class="lp-section" id="faq">
+  <div class="container">
+    <div class="lp-head">
+      <h2 class="lp-h2">Questions fréquentes</h2>
+    </div>
+    <div class="accordion faq mx-auto" id="faqList">
+      {% for q, a in faq %}
+      <div class="accordion-item">
+        <h3 class="accordion-header">
+          <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#q{{ forloop.counter }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">{{ q }}</button>
+        </h3>
+        <div id="q{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#faqList">
+          <div class="accordion-body">{{ a }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ===== Appel final ===== -->
+<section class="container pb-5">
+  <div class="final-cta">
+    <h2>Votre prochain inventaire peut tomber juste.</h2>
+    <p>Créez votre compte, ajoutez vos produits et enregistrez votre première vente aujourd'hui.</p>
+    <a href="{% if user.is_authenticated %}{{ dashboard_url }}{% else %}{{ register_url }}{% endif %}" class="btn btn-lg final-btn">
+      {% if user.is_authenticated %}Ouvrir mon bar{% else %}Essayer {{ trial_days }} jours gratuitement{% endif %}
+    </a>
+  </div>
+</section>
+
+</main>
+
+<footer class="lp-footer">
+  <div class="container d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div class="brand"><span class="brand-mark sm"><i class="bi bi-cup-straw"></i></span><span class="brand-name">{{ site_name }}</span></div>
+    <div class="lp-contact">
+      {% if contact_phone %}<a href="tel:{{ contact_phone }}"><i class="bi bi-telephone"></i> {{ contact_phone }}</a>{% endif %}
+      {% if contact_email %}<a href="mailto:{{ contact_email }}"><i class="bi bi-envelope"></i> {{ contact_email }}</a>{% endif %}
+    </div>
+    <small class="text-secondary">© {% now "Y" %} {{ site_name }}</small>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'js/bar.js' %}"></script>
+</body>
+</html>

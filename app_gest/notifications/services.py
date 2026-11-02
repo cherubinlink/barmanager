@@ -1,0 +1,78 @@
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
+from django.utils import timezone
+
+from core.realtime import send_to_user
+
+from notifications.models import Notification, NotificationPreference
+
+
+def _is_enabled(user, bar, ntype, channel="in_app") -> bool:
+    pref = NotificationPreference.objects.filter(user=user, bar=bar, type=ntype).first()
+    if pref is None:
+        return channel == "in_app"
+    if pref.muted_until and pref.muted_until > timezone.now():
+        return False
+    return getattr(pref, channel)
+
+
+def serialize(n: Notification) -> dict:
+    return {
+        "id": n.id, "type": n.type, "level": n.level, "title": n.title, "body": n.body,
+        "url": n.url, "data": n.data, "occurrences": n.occurrences,
+        "bar_id": n.bar_id, "created_at": n.created_at.isoformat(), "is_read": n.is_read,
+    }
+
+
+def notify(*, recipient, type, title, body="", bar=None, level=Notification.Level.INFO,
+           url="", data=None, target=None, dedup_key=""):
+    """Crée la notification en base puis la pousse en temps réel (WebSocket)."""
+    if not _is_enabled(recipient, bar, type):
+        return None
+    notif = None
+    if dedup_key:
+        notif = Notification.objects.filter(recipient=recipient, dedup_key=dedup_key, is_read=False).first()
+        if notif:
+            notif.occurrences += 1
+            notif.title, notif.body, notif.data = title, body, data or {}
+            notif.save(update_fields=["occurrences", "title", "body", "data", "updated_at"])
+    if notif is None:
+        extra = {}
+        if target is not None:
+            extra = {"target_content_type": ContentType.objects.get_for_model(target), "target_id": str(target.pk)}
+        notif = Notification.objects.create(
+            recipient=recipient, bar=bar, type=type, level=level, title=title, body=body,
+            url=url, data=data or {}, dedup_key=dedup_key, **extra,
+        )
+    transaction.on_commit(lambda: send_to_user(recipient.id, "notification.new", {"notification": serialize(notif)}))
+    return notif
+
+
+def notify_bar(bar, *, type, title, perm=None, exclude_user=None, **kwargs):
+    """Notifie les membres actifs d'un bar, éventuellement filtrés par permission."""
+    from accounts.models import BarMembership
+
+    sent = []
+    for m in BarMembership.objects.filter(bar=bar, is_active=True).select_related("user", "role"):
+        if exclude_user is not None and m.user_id == exclude_user.id:
+            continue
+        if perm and not m.has_perm(perm):
+            continue
+        n = notify(recipient=m.user, bar=bar, type=type, title=title, **kwargs)
+        if n:
+            sent.append(n)
+    return sent
+
+
+def mark_read(user, ids=None, dedup_key=None):
+    qs = Notification.objects.filter(recipient=user, is_read=False)
+    if ids is not None:
+        qs = qs.filter(id__in=ids)
+    if dedup_key:
+        qs = qs.filter(dedup_key=dedup_key)
+    return qs.update(is_read=True, read_at=timezone.now())
+
+
+def unread_count(user, bar=None) -> int:
+    qs = Notification.objects.filter(recipient=user, is_read=False)
+    return qs.filter(bar=bar).count() if bar else qs.count()

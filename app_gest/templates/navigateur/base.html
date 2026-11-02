@@ -1,0 +1,275 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" data-bs-theme="light" data-accent="ambre">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}Tableau de bord{% endblock %} · {{ site_name|default:"BarManager" }}</title>
+
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('bar:settings') || '{}');
+        var t = s.theme || 'auto';
+        if (t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        var r = document.documentElement;
+        r.setAttribute('data-bs-theme', t);
+        if (s.accent) r.setAttribute('data-accent', s.accent);
+        if (s.title)  r.style.setProperty('--title-scale', s.title);
+        if (s.font)   r.style.setProperty('--font-scale', s.font);
+        if (s.collapsed) r.setAttribute('data-sidebar', 'collapsed');
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'css/bar.css' %}" rel="stylesheet">
+  <style>
+    /* Compléments du menu utilisateur, du bar courant et de l'abonnement */
+    .bar-card { display: flex; align-items: center; gap: .7rem; margin: 0 .25rem; padding: .65rem .75rem; background: var(--surface-2); border-radius: calc(var(--radius) * .7); }
+    .bar-card i { color: var(--accent); font-size: 1.1rem; }
+    .bar-card b { display: block; font-size: .92rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-card small { color: var(--muted); }
+    [data-sidebar="collapsed"] .bar-card > div { display: none; }
+    [data-sidebar="collapsed"] .bar-card { justify-content: center; }
+    .nav-item.disabled { opacity: .4; cursor: not-allowed; }
+    .nav-logout { color: #E5534B; }
+    .nav-logout:hover { background: rgba(229,83,75,.12); color: #E5534B; }
+
+    .sub-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .8rem; border-radius: 999px; font-size: .85rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .sub-chip.lvl-ok { background: rgba(63,174,106,.16); color: #3FAE6A; }
+    .sub-chip.lvl-warning { background: rgba(232,153,28,.18); color: #E8991C; }
+    .sub-chip.lvl-danger { background: rgba(229,83,75,.16); color: #E5534B; }
+
+    .notif-btn { position: relative; text-decoration: none; }
+    .notif-count { position: absolute; top: -4px; right: -4px; min-width: 19px; height: 19px; padding: 0 5px; display: grid; place-items: center;
+      border-radius: 999px; background: #E5534B; color: #fff; font-size: .68rem; font-weight: 700; }
+
+    .user-menu { --bs-dropdown-bg: var(--surface); --bs-dropdown-border-color: var(--line); --bs-dropdown-color: var(--ink);
+      --bs-dropdown-link-color: var(--ink); --bs-dropdown-link-hover-bg: var(--surface-2); --bs-dropdown-link-hover-color: var(--ink);
+      --bs-dropdown-border-radius: var(--radius); --bs-dropdown-divider-bg: var(--line); min-width: 240px; padding: .5rem; box-shadow: var(--shadow); }
+    .user-menu .who { padding: .5rem .75rem .6rem; }
+    .user-menu .who b { display: block; }
+    .user-menu .who small { color: var(--muted); }
+    .user-menu .dropdown-item { border-radius: calc(var(--radius) * .5); padding: .55rem .75rem; display: flex; align-items: center; gap: .6rem; }
+    .user-menu .dropdown-item.danger { color: #E5534B; }
+    .user-menu form { margin: 0; }
+    .user-menu button.dropdown-item { width: 100%; background: none; border: 0; text-align: left; }
+    .avatar-btn { border: 0; padding: 0; cursor: pointer; }
+    @media (max-width: 575.98px) { .sub-chip .sub-text { display: none; } }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+{# Adresses utilisées par la barre latérale et le menu (un lien absent n'est simplement pas affiché) #}
+{% url 'accounts:logout' as logout_url %}{% if not logout_url %}{% url 'logout' as logout_url %}{% endif %}
+{% url 'accounts:select_bar' as select_bar_url %}
+{% url 'accounts:new_bar' as new_bar_url %}
+{% url 'notifications:list' as notif_url %}
+{% url 'dashboard:home' as u_home %}
+{% url 'sales:ticket_list' as u_tickets %}
+{% url 'sales:ticket_create' as u_ticket_new %}
+{% url 'catalog:product_list' as u_products %}
+{% url 'inventory:count_list' as u_stock %}
+{% url 'purchasing:order_list' as u_purchases %}
+{% url 'credits:credit_list' as u_credits %}
+{% url 'analytics:overview' as u_stats %}
+{% url 'chat:inbox' as u_chat %}
+{% url 'accounts:team' as u_team %}
+
+<div class="app">
+
+  <!-- ===== Barre latérale ===== -->
+  <aside class="sidebar" id="sidebar" aria-label="Navigation principale">
+    <a href="{% firstof u_home '/' %}" class="brand">
+      <span class="brand-mark"><i class="bi bi-cup-straw"></i></span>
+      <span class="brand-name">{{ site_name|default:"BarManager" }}</span>
+    </a>
+
+    {% if bar %}
+    <div class="bar-card" title="{{ bar.name }}">
+      <i class="bi bi-shop"></i>
+      <div style="min-width:0">
+        <b>{{ bar.name }}</b>
+        <small>{% if membership.is_owner %}Gérant{% else %}{{ membership.role }}{% endif %}</small>
+      </div>
+    </div>
+    {% endif %}
+
+    <nav class="nav-list">
+      <a href="{% firstof u_home '#' %}" class="nav-item{% if not u_home %} disabled{% endif %}"{% if not u_home %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-grid-1x2"></i><span>Tableau de bord</span></a>
+      <a href="{% firstof u_tickets '#' %}" class="nav-item{% if not u_tickets %} disabled{% endif %}"{% if not u_tickets %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-receipt"></i><span>Caisse</span></a>
+      <a href="{% firstof u_products '#' %}" class="nav-item{% if not u_products %} disabled{% endif %}"{% if not u_products %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-cup-hot"></i><span>Boissons et prix</span></a>
+      <a href="{% firstof u_stock '#' %}" class="nav-item{% if not u_stock %} disabled{% endif %}"{% if not u_stock %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-box-seam"></i><span>Stock</span></a>
+      <a href="{% firstof u_purchases '#' %}" class="nav-item{% if not u_purchases %} disabled{% endif %}"{% if not u_purchases %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-truck"></i><span>Commandes au dépôt</span></a>
+      <a href="{% firstof u_credits '#' %}" class="nav-item{% if not u_credits %} disabled{% endif %}"{% if not u_credits %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-wallet2"></i><span>Crédits</span></a>
+      <a href="{% firstof u_stats '#' %}" class="nav-item{% if not u_stats %} disabled{% endif %}"{% if not u_stats %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-bar-chart-line"></i><span>Statistiques</span></a>
+      <a href="{% firstof u_chat '#' %}" class="nav-item{% if not u_chat %} disabled{% endif %}"{% if not u_chat %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-chat-dots"></i><span>Messagerie</span></a>
+      <a href="{% firstof u_team '#' %}" class="nav-item{% if not u_team %} disabled{% endif %}"{% if not u_team %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-people"></i><span>Équipe</span></a>
+    </nav>
+
+    <button class="nav-item nav-collapse" id="collapseBtn" type="button">
+      <i class="bi bi-layout-sidebar-inset"></i><span>Réduire le menu</span>
+    </button>
+    {% if logout_url %}
+    <form method="post" action="{{ logout_url }}" class="m-0">
+      {% csrf_token %}
+      <button type="submit" class="nav-item nav-logout"><i class="bi bi-box-arrow-right"></i><span>Se déconnecter</span></button>
+    </form>
+    {% endif %}
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <!-- ===== Contenu ===== -->
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn d-lg-none" id="menuBtn" type="button" aria-label="Ouvrir le menu"><i class="bi bi-list"></i></button>
+      <div class="search">
+        <i class="bi bi-search"></i>
+        <input type="search" placeholder="Rechercher une boisson, une vente…" aria-label="Rechercher">
+      </div>
+
+      <div class="topbar-actions">
+        {% if subscription_info %}
+          <a class="sub-chip lvl-{{ subscription_info.level }}" href="{% firstof u_home '#' %}" title="{{ subscription_info.label }}">
+            <i class="bi bi-hourglass-split"></i>
+            <span class="sub-text">{% if subscription_info.expired %}Expiré{% else %}{{ subscription_info.days }} jour{{ subscription_info.days|pluralize }}{% endif %}</span>
+            {% if not subscription_info.expired %}<span class="d-sm-none">{{ subscription_info.days }} j</span>{% endif %}
+          </a>
+        {% endif %}
+
+        {% if unread_notifications is not None and bar %}
+          <a class="icon-btn notif-btn" href="{% firstof notif_url '#' %}" aria-label="Notifications">
+            <i class="bi bi-bell"></i>
+            {% if unread_notifications %}<span class="notif-count">{% if unread_notifications > 99 %}99+{% else %}{{ unread_notifications }}{% endif %}</span>{% endif %}
+          </a>
+        {% endif %}
+
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème">
+          <i class="bi bi-moon-stars theme-icon-light"></i>
+          <i class="bi bi-brightness-high theme-icon-dark"></i>
+        </button>
+        <button class="icon-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#settings" aria-label="Réglages d'affichage">
+          <i class="bi bi-sliders"></i>
+        </button>
+
+        <!-- Menu utilisateur -->
+        <div class="dropdown">
+          <button class="avatar avatar-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menu du compte">
+            {{ user.first_name|default:user.get_username|slice:":1"|upper }}
+          </button>
+          <div class="dropdown-menu dropdown-menu-end user-menu">
+            <div class="who">
+              <b>{% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.get_username }}{% endif %}</b>
+              <small>{% if bar %}{{ bar.name }}, {% if membership.is_owner %}gérant{% else %}{{ membership.role }}{% endif %}{% else %}{{ user.get_username }}{% endif %}</small>
+            </div>
+            <div class="dropdown-divider"></div>
+            {% if select_bar_url and bar_count > 1 %}<a class="dropdown-item" href="{{ select_bar_url }}"><i class="bi bi-arrow-left-right"></i> Changer de bar</a>{% endif %}
+            {% if new_bar_url %}<a class="dropdown-item" href="{{ new_bar_url }}"><i class="bi bi-plus-circle"></i> Créer un autre bar</a>{% endif %}
+            {% if u_team %}<a class="dropdown-item" href="{{ u_team }}"><i class="bi bi-people"></i> Équipe et rôles</a>{% endif %}
+            {% if logout_url %}
+            <div class="dropdown-divider"></div>
+            <form method="post" action="{{ logout_url }}">{% csrf_token %}
+              <button type="submit" class="dropdown-item danger"><i class="bi bi-box-arrow-right"></i> Se déconnecter</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      {% if messages %}
+        <div class="messages">
+          {% for m in messages %}
+            <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+              {{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">{% block page_title %}Tableau de bord{% endblock %}</h1>
+          <p class="page-sub">{% block page_sub %}{% endblock %}</p>
+        </div>
+        <div class="page-actions d-flex flex-wrap gap-2">{% block page_actions %}{% endblock %}</div>
+      </div>
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Barre du bas (mobile) -->
+  <nav class="tabbar" aria-label="Navigation rapide">
+    <a href="{% firstof u_home '#' %}" class="tab"><i class="bi bi-grid-1x2"></i><span>Accueil</span></a>
+    <a href="{% firstof u_products '#' %}" class="tab"><i class="bi bi-cup-hot"></i><span>Boissons</span></a>
+    <a href="{% firstof u_ticket_new u_tickets '#' %}" class="tab tab-main" aria-label="Nouveau ticket"><i class="bi bi-receipt"></i></a>
+    <a href="{% firstof u_stock '#' %}" class="tab"><i class="bi bi-box-seam"></i><span>Stock</span></a>
+    <a href="{% firstof u_tickets '#' %}" class="tab"><i class="bi bi-graph-up-arrow"></i><span>Ventes</span></a>
+  </nav>
+</div>
+
+<!-- ===== Panneau de réglages ===== -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="settings" aria-labelledby="settingsLabel">
+  <div class="offcanvas-header">
+    <h2 class="offcanvas-title h5" id="settingsLabel">Apparence</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fermer"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="setting">
+      <label class="setting-label">Thème</label>
+      <div class="seg" data-setting="theme">
+        <button type="button" data-value="light"><i class="bi bi-sun"></i> Clair</button>
+        <button type="button" data-value="dark"><i class="bi bi-moon"></i> Sombre</button>
+        <button type="button" data-value="auto"><i class="bi bi-circle-half"></i> Auto</button>
+      </div>
+    </div>
+    <div class="setting">
+      <label class="setting-label">Couleur d'accent</label>
+      <div class="swatches" data-setting="accent">
+        <button type="button" data-value="ambre" style="--c:#E8991C" title="Ambre"></button>
+        <button type="button" data-value="houblon" style="--c:#4FA463" title="Houblon"></button>
+        <button type="button" data-value="hibiscus" style="--c:#D6456B" title="Hibiscus"></button>
+        <button type="button" data-value="nuit" style="--c:#4F8DF7" title="Nuit"></button>
+      </div>
+    </div>
+    <div class="setting">
+      <label class="setting-label" for="titleRange">Taille des titres <output id="titleOut">100%</output></label>
+      <input type="range" class="form-range" id="titleRange" min="0.8" max="1.5" step="0.05" value="1">
+    </div>
+    <div class="setting">
+      <label class="setting-label" for="fontRange">Taille du texte <output id="fontOut">100%</output></label>
+      <input type="range" class="form-range" id="fontRange" min="0.85" max="1.25" step="0.05" value="1">
+    </div>
+    <div class="setting">
+      <label class="setting-label">Arrondi des cartes</label>
+      <div class="seg" data-setting="radius">
+        <button type="button" data-value="sharp">Net</button>
+        <button type="button" data-value="soft">Doux</button>
+        <button type="button" data-value="round">Rond</button>
+      </div>
+    </div>
+    <div class="setting">
+      <label class="setting-label">Densité</label>
+      <div class="seg" data-setting="density">
+        <button type="button" data-value="compact">Compacte</button>
+        <button type="button" data-value="comfort">Confort</button>
+      </div>
+    </div>
+    <button class="btn btn-outline-secondary w-100 mt-2" id="resetBtn" type="button"><i class="bi bi-arrow-counterclockwise"></i> Réinitialiser</button>
+  </div>
+</div>
+
+<div class="toast-zone" id="toastZone" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'js/bar.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

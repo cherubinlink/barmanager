@@ -1,0 +1,49 @@
+{% extends "navigateur/base_auth.html" %}
+
+{% block title %}Choisir un bar{% endblock %}
+
+{% block extra_css %}
+<style>
+  .bar-list { display: grid; gap: .85rem; }
+  .bar-opt { display: flex; align-items: center; gap: 1rem; width: 100%; padding: 1rem 1.15rem; text-align: left; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+    transition: transform .25s var(--ease), border-color .25s, background .25s; }
+  .bar-opt:hover { transform: translateY(-2px); border-color: var(--accent); background: var(--accent-soft); }
+  .bar-ico { flex: none; width: 48px; height: 48px; display: grid; place-items: center; font-size: 1.3rem; border-radius: calc(var(--radius) * .7); background: var(--accent); color: var(--accent-ink); }
+  .bar-info { flex: 1; min-width: 0; }
+  .bar-info b { display: block; font-family: var(--font-display); font-size: 1.1rem; }
+  .bar-info span { color: var(--muted); font-size: .9rem; }
+  .bar-go { color: var(--muted); font-size: 1.2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Choisissez un bar</h1>
+<p class="au-sub">Votre compte est rattaché à plusieurs bars. Vous pourrez en changer à tout moment.</p>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="bar-list">
+    {% for m in memberships %}
+    <button type="submit" name="bar_id" value="{{ m.bar_id }}" class="bar-opt">
+      <span class="bar-ico"><i class="bi bi-cup-straw"></i></span>
+      <span class="bar-info">
+        <b>{{ m.bar.name }}</b>
+        <span>{% if m.bar.city %}{{ m.bar.city }}, {% endif %}{% if m.is_owner %}gérant{% else %}{{ m.role }}{% endif %}</span>
+      </span>
+      {% if request.session.current_bar_id == m.bar_id %}<span class="chip chip-jus">Actuel</span>{% endif %}
+      <i class="bi bi-chevron-right bar-go"></i>
+    </button>
+    {% endfor %}
+  </div>
+</form>
+
+<div class="au-alt d-flex flex-wrap justify-content-center gap-3">
+  {% url 'accounts:new_bar' as new_bar_url %}
+  {% if new_bar_url %}<a href="{{ new_bar_url }}"><i class="bi bi-plus-circle"></i> Créer un autre bar</a>{% endif %}
+  {% url 'accounts:logout' as logout_url %}
+  {% if logout_url %}
+  <form method="post" action="{{ logout_url }}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-link p-0 text-secondary text-decoration-none">Se déconnecter</button></form>
+  {% endif %}
+</div>
+{% endblock %}
