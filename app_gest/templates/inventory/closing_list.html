@@ -1,0 +1,77 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Clôtures{% endblock %}
+{% block page_title %}Clôtures journalières{% endblock %}
+{% block page_sub %}Chaque soir, comptez la caisse et figez la journée : ventes, stock et espèces.{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}
+<style>
+  .today-box { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; margin-bottom: 1.5rem; padding: 1.1rem 1.35rem; border-radius: var(--radius); }
+  .today-box.todo { background: var(--accent-soft); border: 1px solid var(--accent); }
+  .today-box.done { background: rgba(63,174,106,.12); border: 1px solid #3FAE6A; }
+  .today-box i { font-size: 1.5rem; } .today-box .msg { flex: 1; min-width: 220px; }
+  .gap-cell { font-weight: 700; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  {% if not today_closed %}<a href="{% url 'inventory:closing_close' %}" class="btn btn-primary"><i class="bi bi-lock"></i> Clôturer la journée</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+{% include "inventory/_tabs.html" with active="closings" %}
+
+{% if today_closed %}
+  <div class="today-box done"><i class="bi bi-check-circle-fill pos"></i><div class="msg"><b>La journée du {{ today|date:"l j F" }} est clôturée.</b> Bonne soirée !</div></div>
+{% else %}
+  <div class="today-box todo">
+    <i class="bi bi-lock"></i>
+    <div class="msg"><b>La journée du {{ today|date:"l j F" }} n'est pas encore clôturée.</b><br><span class="text-secondary">Finalisez les tickets ouverts, puis comptez la caisse.</span></div>
+    <a href="{% url 'inventory:closing_close' %}" class="btn btn-primary">Clôturer maintenant</a>
+  </div>
+{% endif %}
+
+<div class="card-bar flush">
+  <div class="table-wrap">
+    <table class="t">
+      <thead><tr><th>Journée</th><th class="l">Clôturée par</th><th>Espèces attendues</th><th>Espèces comptées</th><th>Écart</th></tr></thead>
+      <tbody>
+        {% for c in page.object_list %}
+        <tr>
+          <td><a href="{% url 'inventory:closing_detail' c.pk %}"><span class="nm">{{ c.business_date|date:"l j F Y" }}</span><span class="sub">Clôturée à {{ c.closed_at|time:"H:i" }}</span></a></td>
+          <td class="l">{% firstof c.closed_by.first_name c.closed_by.get_username %}</td>
+          <td>{{ c.cash_expected_fcfa|floatformat:"0g" }}</td>
+          {% if c.cash_counted_fcfa is not None %}
+            <td>{{ c.cash_counted_fcfa|floatformat:"0g" }}</td>
+            <td class="gap-cell js-diff" data-a="{% localize off %}{{ c.cash_counted_fcfa }}{% endlocalize %}" data-b="{% localize off %}{{ c.cash_expected_fcfa }}{% endlocalize %}">—</td>
+          {% else %}
+            <td class="muted">Non compté</td><td class="muted">—</td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="empty-row">Aucune journée clôturée pour le moment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.js-diff').forEach(function (c) {
+    var d = (parseFloat(c.dataset.a) || 0) - (parseFloat(c.dataset.b) || 0);
+    c.textContent = d === 0 ? 'Aucun écart' : (d > 0 ? '+' : '') + d.toLocaleString('fr-FR') + ' FCFA';
+    c.className = 'gap-cell ' + (d < 0 ? 'neg' : d > 0 ? 'pos' : 'pos');
+  });
+</script>
+{% endblock %}

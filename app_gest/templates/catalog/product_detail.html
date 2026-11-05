@@ -1,0 +1,177 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}{{ pb.product.name }}{% endblock %}
+{% block page_title %}{{ pb.product.name }}{% endblock %}
+{% block page_sub %}{% if pb.product.brand %}{{ pb.product.brand }}{% endif %}{% if pb.product.volume_cl %}{% if pb.product.brand %}, {% endif %}{{ pb.product.volume_cl }} cl{% endif %}{% if pb.product.alcohol_percent %}, {{ pb.product.alcohol_percent|floatformat:"-1" }} % vol.{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .d-head { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.25rem; margin-bottom: 1.25rem; }
+  .d-ico { width: 72px; height: 72px; display: grid; place-items: center; font-size: 2.4rem; border-radius: calc(var(--radius) * .9); background: var(--surface-2); overflow: hidden; }
+  .d-ico img { width: 100%; height: 100%; object-fit: cover; }
+  .d-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+  .kpi .k-l { color: var(--muted); font-size: .88rem; }
+  .kpi .k-v { font-family: var(--font-display); font-weight: 800; font-size: calc(1.7rem * var(--title-scale)); line-height: 1.1; }
+  .kpi .k-v small { font-family: var(--font-body); font-size: .45em; color: var(--muted); font-weight: 600; }
+  .kpi .k-s { color: var(--muted); font-size: .84rem; }
+  .k-pos { color: #3FAE6A; } .k-neg { color: #E5534B; } .k-low { color: #E8991C; }
+
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .7rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .rows li:last-child { border-bottom: 0; }
+  .rows .sub { display: block; color: var(--muted); font-size: .84rem; }
+  .rows .acts { display: flex; align-items: center; gap: .35rem; flex: none; }
+  .rows .acts form { margin: 0; }
+  .empty { color: var(--muted); margin: 0; padding: .35rem 0; }
+  .blk-title .btn { white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'catalog:product_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Catalogue</a>
+  {% if can_price %}
+    <form method="post" action="{% url 'catalog:product_toggle' pb.pk %}" class="m-0">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-secondary rounded-pill">{% if pb.is_active %}<i class="bi bi-eye-slash"></i> Désactiver{% else %}<i class="bi bi-eye"></i> Réactiver{% endif %}</button>
+    </form>
+    <a href="{% url 'catalog:product_edit' pb.pk %}" class="btn btn-primary"><i class="bi bi-pencil"></i> Modifier les prix</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% with k=pb.product.category.kind %}
+<div class="d-head">
+  <div class="d-ico">
+    {% if pb.product.image %}<img src="{{ pb.product.image.url }}" alt="">
+    {% elif k == "BEER" %}🍺{% elif k == "WINE" %}🍷{% elif k == "SPIRIT" %}🥃{% elif k == "JUICE" %}🧃{% elif k == "SOFT" %}🥤{% elif k == "WATER" %}💧{% else %}🍹{% endif %}
+  </div>
+  <div class="d-tags">
+    <span class="chip {% if k == 'BEER' %}chip-biere{% elif k == 'JUICE' %}chip-jus{% elif k == 'SOFT' or k == 'WATER' %}chip-soft{% elif k == 'WINE' or k == 'SPIRIT' %}chip-alcool{% else %}chip-neutral{% endif %}">{{ pb.product.category.name }}</span>
+    {% if pb.is_active %}<span class="chip chip-jus">Vendu dans ce bar</span>{% else %}<span class="chip chip-alcool">Désactivé</span>{% endif %}
+    {% if pb.product.status == "PENDING" %}<span class="chip chip-biere">En attente de validation</span>{% endif %}
+  </div>
+</div>
+{% endwith %}
+
+{% if margin and margin.amount < 0 %}
+  <div class="alert alert-warning" role="alert"><i class="bi bi-exclamation-triangle"></i> Vous vendez à perte : le prix de vente est inférieur au prix d'achat.</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <div class="col-lg-7 d-grid gap-4 align-content-start">
+
+    {# ===== Prix, marge, stock ===== #}
+    <div class="card-bar">
+      <div class="kpis">
+        <div class="kpi"><div class="k-l">Prix de vente</div><div class="k-v">{{ pb.sale_price_fcfa|floatformat:"0g" }} <small>FCFA</small></div><div class="k-s">par unité</div></div>
+        {% if can_costs %}
+        <div class="kpi"><div class="k-l">Prix d'achat</div><div class="k-v">{{ pb.purchase_price_fcfa|floatformat:"0g" }} <small>FCFA</small></div><div class="k-s">par unité</div></div>
+        {% if margin %}
+        <div class="kpi"><div class="k-l">Marge</div><div class="k-v {% if margin.amount < 0 %}k-neg{% else %}k-pos{% endif %}">{{ margin.amount|floatformat:"0g" }} <small>FCFA</small></div><div class="k-s">{{ margin.percent }} % du prix de vente</div></div>
+        {% endif %}
+        {% endif %}
+        {% if can_stock %}
+        <div class="kpi"><div class="k-l">Stock</div>
+          <div class="k-v {% if stock <= 0 %}k-neg{% elif stock <= pb.low_stock_threshold %}k-low{% endif %}">{{ stock|floatformat:"-1g" }} <small>unité{{ stock|pluralize }}</small></div>
+          <div class="k-s">{% if stock <= 0 %}Rupture{% elif stock <= pb.low_stock_threshold %}Stock bas{% else %}Alerte sous {{ pb.low_stock_threshold|floatformat:"-1g" }}{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <p class="text-secondary small mt-3 mb-0">Prix applicable depuis le {{ pb.price_effective_from|date:"j F Y" }}.</p>
+    </div>
+
+    {# ===== Conditionnements ===== #}
+    <div class="card-bar">
+      <div class="blk-title">
+        <h2>Conditionnements d'achat</h2>
+        {% if can_pack %}<a href="{% url 'catalog:packaging_add' pb.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-plus-lg"></i> Ajouter</a>{% endif %}
+      </div>
+      <ul class="rows">
+        {% for p in packagings %}
+        <li>
+          <span>{{ p.name }}<span class="sub">{{ p.get_kind_display }}, {{ p.units_per_package }} unité{{ p.units_per_package|pluralize }}</span></span>
+          <span class="acts">
+            {% if p.is_default_purchase %}<span class="chip chip-soft">Habituel</span>{% endif %}
+            {% if can_pack %}
+              <a href="{% url 'catalog:packaging_edit' p.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill" aria-label="Modifier {{ p.name }}"><i class="bi bi-pencil"></i></a>
+              <form method="post" action="{% url 'catalog:packaging_delete' p.pk %}" onsubmit="return confirm('Supprimer le conditionnement {{ p.name|escapejs }} ?');">
+                {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" aria-label="Supprimer {{ p.name }}"><i class="bi bi-trash"></i></button>
+              </form>
+            {% endif %}
+          </span>
+        </li>
+        {% empty %}<li class="empty">Aucun conditionnement. Ajoutez par exemple « Casier de 12 » pour commander plus vite au dépôt.</li>{% endfor %}
+      </ul>
+    </div>
+
+    {# ===== Portions ===== #}
+    <div class="card-bar">
+      <div class="blk-title">
+        <h2>Portions (verre, mesure)</h2>
+        {% if can_price %}<a href="{% url 'catalog:serving_add' pb.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-plus-lg"></i> Ajouter</a>{% endif %}
+      </div>
+      <ul class="rows">
+        {% for s in servings %}
+        <li>
+          <span>{{ s.name }}<span class="sub">{{ s.base_units|floatformat:"-4" }} de bouteille, environ {% widthratio 1 s.base_units 1 %} par bouteille</span></span>
+          <span class="acts">
+            <b>{{ s.price_fcfa|floatformat:"0g" }} FCFA</b>
+            {% if not s.is_active %}<span class="chip chip-alcool">Inactive</span>{% endif %}
+            {% if can_price %}
+              <a href="{% url 'catalog:serving_edit' s.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill" aria-label="Modifier {{ s.name }}"><i class="bi bi-pencil"></i></a>
+              <form method="post" action="{% url 'catalog:serving_delete' s.pk %}" onsubmit="return confirm('Supprimer la portion {{ s.name|escapejs }} ?');">
+                {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" aria-label="Supprimer {{ s.name }}"><i class="bi bi-trash"></i></button>
+              </form>
+            {% endif %}
+          </span>
+        </li>
+        {% empty %}<li class="empty">Aucune portion. Utile pour vendre le vin au verre ou le whisky à la mesure.</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-5 d-grid gap-4 align-content-start">
+
+   {% if can_stock %}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Lots en stock</h2></div>
+      <ul class="rows">
+        {% for lot in lots %}
+          <li>
+            <span>
+              {{ lot.remaining_qty|floatformat:"-1g" }} restant{{ lot.remaining_qty|pluralize }} sur {{ lot.initial_qty|floatformat:"-1g" }}
+              <span class="sub">
+                Reçu le {{ lot.received_at|date:"j F Y" }}{% if can_costs %}, achat {{ lot.unit_cost_fcfa|floatformat:"-2g" }} FCFA l'unité{% endif %}
+              </span>
+            </span>
+            <span class="chip chip-neutral">{{ lot.get_source_display }}</span>
+          </li>
+        {% empty %}
+          <li class="empty">Aucun lot en stock. Le stock se remplit à chaque réception de commande.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+    {% if can_costs %}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Historique des prix</h2></div>
+      <ul class="rows">
+        {% for h in history %}
+          <li>
+            <span>{{ h.effective_from|date:"j F Y" }}<span class="sub">Achat {{ h.purchase_price_fcfa|floatformat:"0g" }} FCFA{% if h.changed_by %}, par {% firstof h.changed_by.first_name h.changed_by.get_username %}{% endif %}</span></span>
+            <b>{{ h.sale_price_fcfa|floatformat:"0g" }} FCFA</b>
+          </li>
+        {% empty %}<li class="empty">Aucun changement de prix enregistré.</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Fournisseurs{% endblock %}
+{% block page_title %}Fournisseurs{% endblock %}
+{% block page_sub %}Vos dépôts et fournisseurs, avec ce que vous leur devez.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 480px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  .sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
+  .scard { display: flex; flex-direction: column; gap: .5rem; padding: var(--pad); text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); transition: transform .25s var(--ease), border-color .25s; }
+  .scard:hover { transform: translateY(-3px); border-color: var(--accent); color: var(--ink); }
+  .scard.off { opacity: .6; }
+  .s-top { display: flex; align-items: center; gap: .85rem; }
+  .s-ico { flex: none; width: 46px; height: 46px; display: grid; place-items: center; font-size: 1.25rem; border-radius: calc(var(--radius) * .7); background: var(--accent-soft); color: var(--accent); }
+  .s-name { font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
+  .s-sub { color: var(--muted); font-size: .88rem; }
+  .s-line { display: flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .9rem; }
+  .s-debt { margin-top: auto; padding-top: .7rem; border-top: 1px dashed var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .s-debt b { font-family: var(--font-display); font-size: 1.15rem; }
+  .s-debt .due { color: #E5534B; } .s-debt .ok { color: #3FAE6A; }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'purchasing:order_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-truck"></i> Commandes</a>
+  <a href="{% url 'purchasing:supplier_add' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouveau fournisseur</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  <div class="search-box">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Nom, contact ou téléphone" aria-label="Rechercher un fournisseur">
+  </div>
+  {% if q %}<a href="?state={{ state }}" class="btn btn-link text-decoration-none">Effacer</a>{% endif %}
+</form>
+
+<div class="pills">
+  <a href="?state=actifs&q={{ q|urlencode }}" class="{% if state == 'actifs' %}on{% endif %}">Actifs</a>
+  <a href="?state=inactifs&q={{ q|urlencode }}" class="{% if state == 'inactifs' %}on{% endif %}">Désactivés</a>
+  <a href="?state=tous&q={{ q|urlencode }}" class="{% if state != 'actifs' and state != 'inactifs' %}on{% endif %}">Tous</a>
+</div>
+
+{% if suppliers %}
+<div class="sgrid">
+  {% for s in suppliers %}
+  <a href="{% url 'purchasing:supplier_detail' s.pk %}" class="scard {% if not s.is_active %}off{% endif %}">
+    <div class="s-top">
+      <div class="s-ico"><i class="bi bi-shop-window"></i></div>
+      <div>
+        <div class="s-name">{{ s.name }}</div>
+        <div class="s-sub">{% if s.contact_name %}{{ s.contact_name }}{% else %}Aucun contact{% endif %}{% if not s.is_active %}, désactivé{% endif %}</div>
+      </div>
+    </div>
+    {% if s.phone %}<div class="s-line"><i class="bi bi-telephone"></i> {{ s.phone }}</div>{% endif %}
+    <div class="s-debt">
+      <span class="s-sub">Reste à payer</span>
+      {% if s.debt > 0 %}<b class="due">{{ s.debt|floatformat:"0g" }} FCFA</b>{% else %}<b class="ok">À jour</b>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🚚</div>
+  {% if q or state != "actifs" %}
+    <h2 class="h5">Aucun fournisseur ne correspond</h2>
+    <a href="?" class="btn btn-outline-secondary rounded-pill">Voir les fournisseurs actifs</a>
+  {% else %}
+    <h2 class="h5">Aucun fournisseur pour le moment</h2>
+    <p class="text-secondary">Ajoutez votre dépôt ou votre brasserie pour pouvoir passer des commandes.</p>
+    <a href="{% url 'purchasing:supplier_add' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter mon premier fournisseur</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,64 @@
+{# Styles communs aux pages du stock. Usage : {% include "inventory/_styles.html" %} dans le bloc extra_css #}
+<style>
+  .itabs { display: flex; gap: .4rem; overflow-x: auto; margin-bottom: 1.25rem; padding-bottom: .25rem; scrollbar-width: none; }
+  .itabs::-webkit-scrollbar { display: none; }
+  .itabs a { flex: none; padding: .45rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .itabs a:hover { color: var(--ink); border-color: var(--accent); }
+  .itabs a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 460px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .filters select, .filters input[type=date] { width: auto; max-width: 230px; border-radius: 999px; background-color: var(--surface); border: 1px solid var(--line); color: var(--ink); padding: .6rem 1rem; }
+  .filters select { padding-right: 2.2rem; }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
+  .kpi .k-l { color: var(--muted); font-size: .88rem; }
+  .kpi .k-v { font-family: var(--font-display); font-weight: 800; font-size: calc(1.6rem * var(--title-scale)); line-height: 1.1; }
+  .kpi .k-v small { font-family: var(--font-body); font-size: .45em; color: var(--muted); font-weight: 600; }
+  .kpi .k-s { color: var(--muted); font-size: .84rem; }
+
+  .card-bar.flush { padding: 0; overflow: hidden; }
+  .table-wrap { overflow-x: auto; }
+  .t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .t th { padding: .7rem .9rem; text-align: right; color: var(--muted); font-weight: 600; font-size: .8rem; white-space: nowrap; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .t td { padding: .7rem .9rem; text-align: right; vertical-align: middle; border-bottom: 1px dashed var(--line); }
+  .t th:first-child, .t td:first-child, .t .l { text-align: left; }
+  .t tbody tr:last-child td { border-bottom: 0; }
+  .t tbody tr:hover { background: var(--surface-2); }
+  .t tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; }
+  .t .nm { font-weight: 600; }
+  .t .sub { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
+  .t a { color: inherit; text-decoration: none; } .t a:hover { color: var(--accent); }
+  .pos { color: #3FAE6A; } .neg { color: #E5534B; } .muted { color: var(--muted); }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+
+  .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+  .empty-row { color: var(--muted); text-align: center !important; padding: 1.5rem !important; }
+
+  /* Formulaires */
+  .form-shell { max-width: 760px; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .field { grid-column: span 1; }
+  .field.full { grid-column: span 2; }
+  .field label { font-weight: 600; margin-bottom: .35rem; display: block; }
+  .field .help { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .field .err { color: #E5534B; font-size: .85rem; margin-top: .3rem; }
+  .field .form-control, .field .form-select { padding: .7rem .9rem; }
+  .field .input-group-text { background: var(--surface-2); border-color: var(--line); color: var(--muted); font-weight: 600; font-size: .85rem; }
+  @media (max-width: 575.98px) { .field { grid-column: span 2; } }
+
+  @media print {
+    .sidebar, .topbar, .tabbar, .scrim, .page-actions, .itabs, .filters, .pills, .toast-zone { display: none !important; }
+    .app { display: block !important; } .content { padding: 0 !important; }
+    .card-bar { box-shadow: none !important; }
+  }
+</style>

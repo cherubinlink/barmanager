@@ -1,0 +1,151 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Inventaire{% endblock %}
+{% block page_title %}Inventaire {{ count.get_period_type_display|lower }}{% endblock %}
+{% block page_sub %}{% if count.period_start == count.period_end %}Le {{ count.period_end|date:"j F Y" }}{% else %}Du {{ count.period_start|date:"j F" }} au {{ count.period_end|date:"j F Y" }}{% endif %}{% if count.note %}. {{ count.note }}{% endif %}{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}
+<style>
+  .progress-bar-x { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: .5rem; }
+  .progress-bar-x span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .6s var(--ease); }
+  .count-input { width: 7.5rem; text-align: right; margin-left: auto; font-weight: 700; padding: .45rem .6rem; }
+  .gap-cell { font-weight: 700; white-space: nowrap; }
+  .save-bar { position: sticky; bottom: 1rem; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.5rem; margin-top: 1.25rem; padding: 1rem 1.25rem;
+    background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: var(--shadow), 0 12px 30px -12px rgba(0,0,0,.35); }
+  .err { color: #E5534B; font-size: .8rem; text-align: right; }
+  @media (max-width: 575.98px) { .save-bar { bottom: 5.5rem; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'inventory:count_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Inventaires</a>
+  {% if can_validate %}
+    <form method="post" action="{% url 'inventory:count_delete' count.pk %}" class="m-0" onsubmit="return confirm('Supprimer cet inventaire ?');">
+      {% csrf_token %}<button type="submit" class="btn btn-outline-danger rounded-pill"><i class="bi bi-trash"></i> Supprimer</button>
+    </form>
+    <form method="post" action="{% url 'inventory:count_validate' count.pk %}" class="m-0" onsubmit="return confirm('Valider cet inventaire ? Le stock sera corrigé selon vos quantités comptées. Les produits non comptés ne changent pas.');">
+      {% csrf_token %}<button type="submit" class="btn btn-primary"><i class="bi bi-check2-all"></i> Valider l'inventaire</button>
+    </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% include "inventory/_tabs.html" with active="counts" %}
+
+<div class="card-bar mb-4">
+  <div class="kpis">
+    <div class="kpi"><div class="k-l">Avancement</div>
+      <div class="k-v">{{ counted }} <small>sur {{ total }} produit{{ total|pluralize }}</small></div>
+      {% widthratio counted total 100 as pct %}
+      <div class="progress-bar-x"><span style="width: {{ pct }}%"></span></div>
+    </div>
+    <div class="kpi"><div class="k-l">État</div>
+      <div class="k-v" style="font-size:1.2rem">{{ count.get_status_display }}</div>
+      <div class="k-s">{% if count.validated_at %}Validé le {{ count.validated_at|date:"j F Y" }}{% else %}Pas encore validé{% endif %}</div>
+    </div>
+    {% if can_costs and counted %}
+    <div class="kpi"><div class="k-l">Valeur des écarts</div>
+      <div class="k-v {% if gap_value < 0 %}neg{% elif gap_value > 0 %}pos{% endif %}">{% if gap_value > 0 %}+{% endif %}{{ gap_value|floatformat:"0g" }} <small>FCFA</small></div>
+      <div class="k-s">{% if gap_value < 0 %}Manquant{% elif gap_value > 0 %}Surplus{% else %}Aucun écart{% endif %}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if editable %}
+<form method="post" class="count-form" novalidate>
+  {% csrf_token %}
+  <div class="filters">
+    <div class="search-box"><i class="bi bi-search"></i><input type="search" id="rowSearch" placeholder="Chercher un produit" aria-label="Chercher un produit"></div>
+    <label class="d-flex align-items-center gap-2 text-secondary"><input type="checkbox" id="onlyTodo" class="form-check-input m-0"> Seulement les non comptés</label>
+  </div>
+
+  <div class="card-bar flush">
+    <div class="table-wrap">
+      <table class="t">
+        <thead><tr><th>Produit</th><th>Stock théorique</th><th>Quantité comptée</th><th>Écart</th></tr></thead>
+        <tbody>
+          {% for field in form %}
+          {% with line=field.field.line %}
+          <tr class="cl" data-name="{{ field.label|lower }}" data-th="{% localize off %}{{ line.theoretical_qty }}{% endlocalize %}">
+            <td><span class="nm">{{ field.label }}</span><span class="sub">{{ line.product_bar.product.category.name }}</span></td>
+            <td class="muted">{{ line.theoretical_qty|floatformat:"-3g" }}</td>
+            <td>{{ field }}{% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}</td>
+            <td class="gap-cell">—</td>
+          </tr>
+          {% endwith %}
+          {% empty %}<tr><td colspan="4" class="empty-row">Aucun produit à compter.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="save-bar">
+    <span class="text-secondary">Laissez vide un produit pas encore compté. Enregistrez régulièrement, puis validez à la fin.</span>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer le comptage</button>
+  </div>
+</form>
+
+{% else %}
+<div class="card-bar flush">
+  <div class="table-wrap">
+    <table class="t">
+      <thead><tr><th>Produit</th><th>Stock théorique</th><th>Compté</th><th>Écart</th>{% if can_costs %}<th>Valeur de l'écart</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for l in lines %}
+        <tr>
+          <td><span class="nm">{{ l.product_bar.product }}</span></td>
+          <td class="muted">{{ l.theoretical_qty|floatformat:"-3g" }}</td>
+          {% if l.counted_qty is not None %}
+            <td><b>{{ l.counted_qty|floatformat:"-3g" }}</b></td>
+            <td class="gap-cell js-diff" data-a="{% localize off %}{{ l.counted_qty }}{% endlocalize %}" data-b="{% localize off %}{{ l.theoretical_qty }}{% endlocalize %}">—</td>
+            {% if can_costs %}<td class="{% if l.difference_value_fcfa < 0 %}neg{% elif l.difference_value_fcfa > 0 %}pos{% else %}muted{% endif %}">{% if l.difference_value_fcfa > 0 %}+{% endif %}{{ l.difference_value_fcfa|floatformat:"0g" }}</td>{% endif %}
+          {% else %}
+            <td class="muted">Non compté</td><td class="muted">—</td>{% if can_costs %}<td class="muted">—</td>{% endif %}
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var fmt = function (n) { return (n > 0 ? '+' : '') + (Math.round(n * 1000) / 1000).toLocaleString('fr-FR'); };
+    function paint(cell, diff) {
+      cell.textContent = diff === 0 ? '0' : fmt(diff);
+      cell.className = 'gap-cell ' + (diff < 0 ? 'neg' : diff > 0 ? 'pos' : 'muted');
+    }
+    // Écart en direct pendant la saisie
+    var rows = document.querySelectorAll('tr.cl');
+    rows.forEach(function (r) {
+      var inp = r.querySelector('input'), cell = r.querySelector('.gap-cell'), th = parseFloat(r.dataset.th) || 0;
+      inp.classList.add('form-control', 'count-input');
+      var update = function () {
+        if (inp.value === '') { cell.textContent = '—'; cell.className = 'gap-cell muted'; return; }
+        paint(cell, (parseFloat(inp.value) || 0) - th);
+      };
+      inp.addEventListener('input', update); update();
+    });
+    // Inventaire validé : écarts calculés à partir des données de la ligne
+    document.querySelectorAll('.js-diff').forEach(function (c) {
+      paint(c, (parseFloat(c.dataset.a) || 0) - (parseFloat(c.dataset.b) || 0));
+    });
+    // Recherche et filtre « non comptés »
+    var search = document.getElementById('rowSearch'), todo = document.getElementById('onlyTodo');
+    function filter() {
+      var q = (search.value || '').trim().toLowerCase();
+      rows.forEach(function (r) {
+        var ok = (!q || r.dataset.name.indexOf(q) !== -1) && (!todo.checked || r.querySelector('input').value === '');
+        r.style.display = ok ? '' : 'none';
+      });
+    }
+    if (search) { search.addEventListener('input', filter); todo.addEventListener('change', filter); }
+  })();
+</script>
+{% endblock %}

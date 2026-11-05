@@ -1,0 +1,80 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Équipe{% endblock %}
+{% block page_title %}Équipe{% endblock %}
+{% block page_sub %}Les personnes qui travaillent dans {{ bar.name }} et ce qu'elles peuvent faire.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .quota { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; margin-bottom: 1.5rem; }
+  .quota .q-text { flex: 1; min-width: 220px; }
+  .quota .q-text b { font-family: var(--font-display); font-size: calc(1.5rem * var(--title-scale)); }
+  .meter { flex: 1; min-width: 180px; height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .meter span { display: block; height: 100%; max-width: 100%; background: var(--accent); border-radius: 999px; transition: width .8s var(--ease); }
+  .meter.full span { background: #E5534B; }
+
+  .members { display: grid; gap: .75rem; }
+  .member { display: flex; align-items: center; gap: 1rem; padding: var(--pad); background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); transition: border-color .25s, transform .25s var(--ease); }
+  .member:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .member.off { opacity: .6; }
+  .m-av { flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; background: var(--accent-soft); color: var(--accent); }
+  .m-info { flex: 1; min-width: 0; }
+  .m-info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-sub { display: block; color: var(--muted); font-size: .88rem; }
+  .m-tags { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; justify-content: flex-end; }
+  @media (max-width: 575.98px) { .member { flex-wrap: wrap; } .m-tags { width: 100%; justify-content: flex-start; padding-left: 64px; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'accounts:roles' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-shield-check"></i> Rôles</a>
+  {% if limit and active_count >= limit %}
+    <span class="btn btn-primary disabled" title="Limite d'utilisateurs atteinte"><i class="bi bi-person-plus"></i> Ajouter un membre</span>
+  {% else %}
+    <a href="{% url 'accounts:member_add' %}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Ajouter un membre</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="card-bar quota">
+  <div class="q-text">
+    <b>{{ active_count }}</b>
+    utilisateur{{ active_count|pluralize }} actif{{ active_count|pluralize }}
+    {% if limit %}sur {{ limit }} autorisé{{ limit|pluralize }} par votre abonnement{% else %}(nombre illimité){% endif %}
+  </div>
+  {% if limit %}
+    <div class="meter {% if active_count >= limit %}full{% endif %}"><span style="width: {% widthratio active_count limit 100 %}%"></span></div>
+    {% if active_count >= limit %}
+      <div class="w-100 text-secondary small"><i class="bi bi-exclamation-circle"></i> Limite atteinte : désactivez un membre ou changez d'abonnement pour en ajouter.</div>
+    {% endif %}
+  {% endif %}
+</div>
+
+<div class="members">
+  {% for m in members %}
+  <article class="member {% if not m.is_active %}off{% endif %}">
+    <div class="m-av">{{ m.user.first_name|default:m.user.get_username|slice:":1"|upper }}</div>
+
+    <div class="m-info">
+      <b>{% firstof m.user.get_full_name m.user.get_username %}</b>
+      <span class="m-sub">{% if m.is_owner %}Gérant{% else %}{{ m.role.name }}{% endif %}{% if m.user.phone %}, {{ m.user.phone }}{% endif %}</span>
+      <span class="m-sub">{% if m.user.last_login %}Vu il y a {{ m.user.last_login|timesince }}{% else %}Jamais connecté{% endif %}</span>
+    </div>
+
+    <div class="m-tags">
+      {% if m.is_owner %}<span class="chip chip-biere"><i class="bi bi-star-fill"></i> Propriétaire</span>{% endif %}
+      {% if m.user_id == user.id %}<span class="chip chip-soft">Vous</span>{% endif %}
+      {% if not m.is_active %}<span class="chip chip-alcool">Désactivé</span>{% endif %}
+      {% if not m.is_owner and m.user_id != user.id %}
+        <a href="{% url 'accounts:member_edit' m.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-pencil"></i> Modifier</a>
+      {% endif %}
+    </div>
+  </article>
+  {% empty %}
+    <div class="card-bar text-center"><p class="mb-0 text-secondary">Aucun membre pour le moment.</p></div>
+  {% endfor %}
+</div>
+
+{% endblock %}

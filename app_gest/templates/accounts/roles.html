@@ -1,0 +1,70 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Rôles{% endblock %}
+{% block page_title %}Rôles et permissions{% endblock %}
+{% block page_sub %}Un rôle décide de ce que chaque membre peut voir et faire. Créez les vôtres selon votre organisation.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+  .role-card { display: flex; flex-direction: column; gap: .9rem; }
+  .role-top { display: flex; align-items: flex-start; gap: .85rem; }
+  .role-ico { flex: none; width: 46px; height: 46px; display: grid; place-items: center; font-size: 1.25rem; border-radius: calc(var(--radius) * .7); background: var(--accent-soft); color: var(--accent); }
+  .role-top h2 { font-size: calc(1.15rem * var(--title-scale)); font-weight: 700; margin: 0; }
+  .role-meta { color: var(--muted); font-size: .9rem; }
+  .role-foot { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: auto; }
+  .role-foot form { margin: 0; }
+  .role-help { display: flex; gap: .75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
+  .role-help i { color: var(--accent); font-size: 1.2rem; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'accounts:team' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-people"></i> Équipe</a>
+  <a href="{% url 'accounts:role_add' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouveau rôle</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="role-help">
+  <i class="bi bi-info-circle"></i>
+  <div>Les rôles par défaut (gérant, caissier, vendeuse, magasinier) sont prêts à l'emploi. Vous pouvez les ajuster ou créer des rôles sur mesure, par exemple « Responsable de salle ». Un rôle attribué à des membres ne peut pas être supprimé.</div>
+</div>
+
+<div class="role-grid">
+  {% for role in roles %}
+  <article class="card-bar role-card">
+    <div class="role-top">
+      <div class="role-ico"><i class="bi bi-{% if role.code == 'gerant' and role.is_system %}shield-fill-check{% else %}shield-check{% endif %}"></i></div>
+      <div>
+        <h2>{{ role.name }}</h2>
+        <span class="role-meta">{{ role.n }} membre{{ role.n|pluralize }}</span>
+      </div>
+    </div>
+
+    <div class="role-foot">
+      {% if role.is_system %}<span class="chip chip-soft">Par défaut</span>{% else %}<span class="chip chip-jus">Personnalisé</span>{% endif %}
+
+      {% if role.code == "gerant" and role.is_system %}
+        <span class="chip chip-biere"><i class="bi bi-key"></i> Tous les droits</span>
+      {% else %}
+        <a href="{% url 'accounts:role_edit' role.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill ms-auto"><i class="bi bi-pencil"></i> Modifier</a>
+        {% if not role.is_system %}
+          {% if role.n == 0 %}
+          <form method="post" action="{% url 'accounts:role_delete' role.pk %}" onsubmit="return confirm('Supprimer le rôle {{ role.name|escapejs }} ?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" aria-label="Supprimer le rôle {{ role.name }}"><i class="bi bi-trash"></i></button>
+          </form>
+          {% else %}
+            <span class="btn btn-sm btn-outline-danger rounded-pill disabled" title="Ce rôle est attribué à des membres"><i class="bi bi-trash"></i></span>
+          {% endif %}
+        {% endif %}
+      {% endif %}
+    </div>
+  </article>
+  {% empty %}
+    <div class="card-bar text-center"><p class="mb-0 text-secondary">Aucun rôle pour le moment.</p></div>
+  {% endfor %}
+</div>
+
+{% endblock %}

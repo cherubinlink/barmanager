@@ -1,0 +1,85 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Ajouter un produit{% endblock %}
+{% block page_title %}Ajouter un produit{% endblock %}
+{% block page_sub %}Retrouvez votre boisson dans le catalogue commun, puis fixez vos prix.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .steps-mini { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; margin-bottom: 1.5rem; color: var(--muted); font-size: .92rem; }
+  .steps-mini span { display: inline-flex; align-items: center; gap: .55rem; }
+  .steps-mini i { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); font-style: normal; font-weight: 700; font-size: .8rem; }
+  .steps-mini .on { color: var(--ink); font-weight: 600; }
+  .steps-mini .on i { background: var(--accent); color: var(--accent-ink); }
+
+  .big-search { position: relative; max-width: 640px; margin-bottom: 1.5rem; }
+  .big-search i { position: absolute; left: 1.2rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.1rem; }
+  .big-search input { width: 100%; padding: .95rem 8.5rem .95rem 3rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 1.05rem; }
+  .big-search input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .big-search button { position: absolute; right: .4rem; top: 50%; transform: translateY(-50%); }
+
+  .res-list { display: grid; gap: .6rem; max-width: 760px; }
+  .res { display: flex; align-items: center; gap: 1rem; padding: .9rem 1.1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); transition: border-color .25s, transform .25s var(--ease); }
+  .res:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .res .r-info { flex: 1; min-width: 0; }
+  .res .r-name { font-weight: 700; }
+  .res .r-sub { color: var(--muted); font-size: .86rem; }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+
+  .propose { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; max-width: 760px; margin-top: 1.5rem; padding: 1.1rem 1.25rem; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
+  .propose > div { flex: 1; min-width: 220px; }
+  .propose b { color: var(--ink); }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'catalog:product_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Mon catalogue</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="steps-mini">
+  <span class="on"><i>1</i> Rechercher le produit</span>
+  <span><i>2</i> Fixer vos prix</span>
+</div>
+
+<form method="get" class="big-search" role="search">
+  <i class="bi bi-search"></i>
+  <input type="search" name="q" value="{{ q }}" placeholder="Nom ou marque, par exemple Castel" aria-label="Rechercher un produit" autofocus>
+  <button type="submit" class="btn btn-primary">Rechercher</button>
+</form>
+
+{% if q %}
+  {% if results %}
+    <p class="text-secondary mb-3">{{ results|length }} résultat{{ results|length|pluralize }} pour « {{ q }} »{% if results|length >= 30 %}. Affinez votre recherche pour en voir moins.{% endif %}</p>
+    <div class="res-list">
+      {% for r in results %}
+      {% with k=r.category.kind %}
+      <div class="res">
+        <div class="r-info">
+          <div class="r-name">{{ r.name }}{% if r.volume_cl %} {{ r.volume_cl }} cl{% endif %}</div>
+          <div class="r-sub">{% if r.brand %}{{ r.brand }}, {% endif %}{% if r.alcohol_percent %}{{ r.alcohol_percent|floatformat:"-1" }} % vol., {% endif %}<span class="chip {% if k == 'BEER' %}chip-biere{% elif k == 'JUICE' %}chip-jus{% elif k == 'SOFT' or k == 'WATER' %}chip-soft{% elif k == 'WINE' or k == 'SPIRIT' %}chip-alcool{% else %}chip-neutral{% endif %}">{{ r.category.name }}</span>
+            {% if r.status == "PENDING" %}<span class="chip chip-biere">En attente de validation</span>{% endif %}
+          </div>
+        </div>
+        <a href="{% url 'catalog:product_add_existing' r.pk %}" class="btn btn-primary btn-sm rounded-pill"><i class="bi bi-plus-lg"></i> Ajouter</a>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card-bar" style="max-width:760px">
+      <h2 class="h5">Aucun produit trouvé pour « {{ q }} »</h2>
+      <p class="text-secondary mb-0">Vérifiez l'orthographe ou cherchez avec un mot plus court. Si le produit n'existe vraiment pas, vous pouvez le créer ci-dessous.</p>
+    </div>
+  {% endif %}
+{% else %}
+  <p class="text-secondary" style="max-width:640px"><i class="bi bi-lightbulb"></i> Tapez le nom ou la marque de la boisson. Les produits déjà présents dans votre catalogue ne sont pas proposés.</p>
+{% endif %}
+
+<div class="propose">
+  <div><b>Produit introuvable ?</b><br>Créez-le : vous pourrez le vendre tout de suite, et il sera proposé aux autres bars après validation.</div>
+  <a href="{% url 'catalog:product_propose' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-plus-circle"></i> Créer un nouveau produit</a>
+</div>
+
+{% endblock %}

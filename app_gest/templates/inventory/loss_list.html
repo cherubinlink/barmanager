@@ -1,0 +1,85 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Pertes{% endblock %}
+{% block page_title %}Pertes et casse{% endblock %}
+{% block page_sub %}{% if can_review %}Les pertes déclarées par l'équipe : validez-les pour que le stock soit mis à jour.{% else %}Vos déclarations de perte et leur suivi.{% endif %}{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}
+<style>
+  .losses { display: grid; gap: .75rem; }
+  .loss { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto; align-items: center; gap: .75rem 1.5rem; padding: var(--pad); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .loss .l-name { font-weight: 700; }
+  .loss .l-qty { font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; color: #E5534B; }
+  .loss .l-sub { display: block; color: var(--muted); font-size: .86rem; }
+  .loss .l-note { color: var(--muted); font-size: .88rem; margin-top: .25rem; }
+  .loss .l-side { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem; }
+  .loss .l-side form { margin: 0; }
+  .loss .l-photo { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 1px solid var(--line); }
+  @media (max-width: 767.98px) { .loss { grid-template-columns: 1fr; } .loss .l-side { justify-content: flex-start; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  {% if can_declare %}<a href="{% url 'inventory:loss_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Déclarer une perte</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+{% include "inventory/_tabs.html" with active="losses" %}
+
+{% if can_review and pending %}
+  <div class="alert alert-warning" role="status"><i class="bi bi-hourglass-split"></i> {{ pending }} perte{{ pending|pluralize }} en attente de validation.</div>
+{% endif %}
+
+<div class="pills">
+  <a href="?" class="{% if not state %}on{% endif %}">Toutes</a>
+  {% for s in statuses %}<a href="?state={{ s.0 }}" class="{% if state == s.0 %}on{% endif %}">{{ s.1 }}</a>{% endfor %}
+</div>
+
+{% if page.object_list %}
+<div class="losses">
+  {% for l in page.object_list %}
+  {% with s=l.status|upper %}
+  <article class="loss">
+    <div>
+      <div class="l-name">{{ l.product_bar.product }}</div>
+      <span class="l-sub">{{ l.get_reason_display }}, le {{ l.business_date|date:"j F Y" }}</span>
+      {% if l.note %}<div class="l-note">{{ l.note }}</div>{% endif %}
+    </div>
+    <div>
+      <div class="l-qty">{{ l.quantity|floatformat:"-3g" }} <small class="text-secondary" style="font-size:.6em">unité{{ l.quantity|pluralize }}</small></div>
+      <span class="l-sub">Déclarée par {% firstof l.declared_by.first_name l.declared_by.get_username %}{% if l.reviewed_by %}, traitée par {% firstof l.reviewed_by.first_name l.reviewed_by.get_username %}{% endif %}</span>
+    </div>
+    <div class="l-side">
+      {% if l.photo %}<a href="{{ l.photo.url }}" target="_blank" rel="noopener" aria-label="Voir la photo"><img src="{{ l.photo.url }}" alt="" class="l-photo"></a>{% endif %}
+      <span class="chip {% if s == 'PENDING' %}chip-biere{% elif s == 'APPROVED' %}chip-jus{% else %}chip-alcool{% endif %}">{{ l.get_status_display }}</span>
+      {% if can_review and s == 'PENDING' and not l.declared_by_id == user.id or can_review and s == 'PENDING' and membership.is_owner %}
+        <form method="post" action="{% url 'inventory:loss_approve' l.pk %}" onsubmit="return confirm('Valider cette perte ? Le stock sera mis à jour.');">
+          {% csrf_token %}<button type="submit" class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-check-lg"></i> Valider</button>
+        </form>
+        <form method="post" action="{% url 'inventory:loss_reject' l.pk %}" onsubmit="return confirm('Rejeter cette perte ? Le stock ne sera pas modifié.');">
+          {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-x-lg"></i> Rejeter</button>
+        </form>
+      {% endif %}
+    </div>
+  </article>
+  {% endwith %}
+  {% endfor %}
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?{% if state %}state={{ state }}&{% endif %}page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?{% if state %}state={{ state }}&{% endif %}page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🍾</div>
+  <h2 class="h5">Aucune perte {% if state %}dans cet état{% else %}déclarée{% endif %}</h2>
+  <p class="text-secondary">Bouteille cassée, produit périmé, boisson offerte : déclarez-la ici pour garder un stock exact.</p>
+  {% if can_declare %}<a href="{% url 'inventory:loss_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Déclarer une perte</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

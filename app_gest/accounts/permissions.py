@@ -32,3 +32,40 @@ DEFAULT_ROLES = {
     "magasinier": ("Magasinier", [
         Perm.STOCK_VIEW, Perm.STOCK_RECEIVE, Perm.LOSS_DECLARE, Perm.PURCHASE_MANAGE, Perm.CHAT_USE]),
 }
+
+PERMISSION_GROUPS = {
+    "Ventes": [
+        (Perm.POS_SELL, "Créer et modifier les tickets"),
+        (Perm.POS_FINALIZE, "Encaisser et finaliser les factures"),
+        (Perm.POS_DISCOUNT, "Accorder des remises"),
+        (Perm.POS_VOID, "Annuler des lignes ou des tickets"),
+        (Perm.POS_VALIDATE_QR, "Valider les commandes QR des clients"),
+    ],
+    "Stock": [
+        (Perm.STOCK_VIEW, "Voir le stock"),
+        (Perm.STOCK_RECEIVE, "Réceptionner les commandes fournisseurs"),
+        (Perm.STOCK_ADJUST, "Faire l'inventaire et ajuster le stock"),
+    ],
+    "Pertes": [
+        (Perm.LOSS_DECLARE, "Déclarer une perte"),
+        (Perm.LOSS_APPROVE, "Valider les pertes"),
+    ],
+    "Achats et crédits": [
+        (Perm.PURCHASE_MANAGE, "Gérer les commandes fournisseurs"),
+        (Perm.CREDIT_MANAGE, "Gérer les crédits clients"),
+    ],
+    "Catalogue": [
+        (Perm.PRICE_EDIT, "Modifier les prix"),
+        (Perm.CATALOG_ADD, "Ajouter des produits"),
+    ],
+    "Gestion": [
+        (Perm.REPORT_VIEW, "Voir les rapports et statistiques"),
+        (Perm.USER_MANAGE, "Gérer l'équipe et les rôles"),
+        (Perm.BAR_SETTINGS, "Modifier les réglages du bar"),
+        (Perm.SUBSCRIPTION_MANAGE, "Gérer l'abonnement"),
+    ],
+    "Messagerie": [
+        (Perm.CHAT_USE, "Utiliser la messagerie"),
+        (Perm.CHAT_BROADCAST, "Écrire à toute l'équipe"),
+    ],
+}

@@ -1,0 +1,216 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}{{ order.reference }}{% endblock %}
+{% block page_title %}{{ order.reference }}{% endblock %}
+{% block page_sub %}Commande à {{ order.supplier.name }}, passée le {{ order.ordered_at|date:"j F Y" }}.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .flow { list-style: none; margin: 0; padding: 0; display: flex; align-items: flex-start; }
+  .flow li { flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; gap: .45rem; text-align: center; color: var(--muted); font-size: .88rem; font-weight: 600; }
+  .flow li::before { content: ""; position: absolute; top: 15px; left: -50%; width: 100%; height: 2px; background: var(--line); z-index: 0; }
+  .flow li:first-child::before { display: none; }
+  .flow i { position: relative; z-index: 1; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); font-style: normal; font-weight: 700; font-size: .85rem; }
+  .flow li.done { color: var(--ink); } .flow li.done i { background: var(--accent); color: var(--accent-ink); }
+  .flow li.done::before { background: var(--accent); }
+  .flow li.now i { box-shadow: 0 0 0 5px var(--accent-soft); }
+
+  .table { --bs-table-bg: transparent; margin: 0; font-variant-numeric: tabular-nums; }
+  .table th { color: var(--muted); font-weight: 600; font-size: .82rem; white-space: nowrap; border-bottom-color: var(--line); }
+  .table td { vertical-align: middle; border-bottom-color: var(--line); }
+  .table tfoot td { border-bottom: 0; font-weight: 700; }
+  .t-name { font-weight: 600; }
+  .t-sub { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
+  .mini { width: 70px; height: 6px; margin-top: .3rem; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .mini span { display: block; height: 100%; background: var(--accent); }
+  .acts { display: flex; gap: .35rem; justify-content: flex-end; }
+  .acts form { margin: 0; }
+
+  .money { display: grid; gap: .65rem; }
+  .money .m { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-variant-numeric: tabular-nums; }
+  .money .m span { color: var(--muted); }
+  .money .big b { font-family: var(--font-display); font-size: calc(1.6rem * var(--title-scale)); }
+  .money .neg { color: #E5534B; } .money .pos { color: #3FAE6A; }
+  .info { list-style: none; margin: 0; padding: 0; display: grid; gap: .8rem; }
+  .info li { display: flex; justify-content: space-between; gap: 1rem; font-size: .93rem; }
+  .info li span { color: var(--muted); } .info li b { text-align: right; font-weight: 600; }
+  .info a { color: var(--ink); } .info a:hover { color: var(--accent); }
+  .pay { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .7rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .pay:last-child { border-bottom: 0; }
+  .pay .sub { display: block; color: var(--muted); font-size: .82rem; }
+  .pay form { margin: 0; }
+  .empty { color: var(--muted); margin: 0; padding: .35rem 0; }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+  @media (max-width: 575.98px) { .flow li { font-size: .74rem; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'purchasing:order_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Commandes</a>
+
+  {% if can_manage and can_edit_header %}
+    <a href="{% url 'purchasing:order_edit' order.pk %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-pencil"></i> Modifier</a>
+  {% endif %}
+  {% if can_manage and can_close %}
+    <form method="post" action="{% url 'purchasing:order_close' order.pk %}" class="m-0" onsubmit="return confirm('Clôturer cette commande ? Le reste non livré ne sera plus attendu.');">
+      {% csrf_token %}<button type="submit" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-check2-all"></i> Clôturer</button>
+    </form>
+  {% endif %}
+  {% if can_manage and can_cancel %}
+    <form method="post" action="{% url 'purchasing:order_cancel' order.pk %}" class="m-0" onsubmit="return confirm('Annuler cette commande ?');">
+      {% csrf_token %}<button type="submit" class="btn btn-outline-danger rounded-pill"><i class="bi bi-x-circle"></i> Annuler</button>
+    </form>
+  {% endif %}
+  {% if can_manage and can_pay %}
+    <a href="{% url 'purchasing:payment_add' order.pk %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-cash-coin"></i> Enregistrer un paiement</a>
+  {% endif %}
+  {% if can_receive and can_receive_now %}
+    <a href="{% url 'purchasing:order_receive' order.pk %}" class="btn btn-primary"><i class="bi bi-box-seam"></i> Réceptionner</a>
+  {% endif %}
+  {% if can_manage and can_send %}
+    <form method="post" action="{% url 'purchasing:order_send' order.pk %}" class="m-0">
+      {% csrf_token %}<button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Envoyer au fournisseur</button>
+    </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% with s=order.status|upper %}
+
+{% if can_money and order.due_date and order.due_date < today and order.balance_due_fcfa > 0 and s != 'DRAFT' and s != 'CANCELLED' %}
+  <div class="alert alert-warning" role="alert"><i class="bi bi-exclamation-triangle"></i> Paiement en retard : l'échéance était le {{ order.due_date|date:"j F Y" }}. Il reste {{ order.balance_due_fcfa|floatformat:"0g" }} FCFA à payer.</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <div class="col-lg-8 d-grid gap-4 align-content-start">
+
+    {# ===== Avancement ===== #}
+    <div class="card-bar">
+      {% if s == "CANCELLED" %}
+        <div class="d-flex align-items-center gap-2"><span class="chip chip-alcool">Annulée</span><span class="text-secondary">Cette commande a été annulée.</span></div>
+      {% else %}
+      <ol class="flow" aria-label="Avancement de la commande">
+        <li class="done {% if s == 'DRAFT' %}now{% endif %}"><i>1</i>Brouillon</li>
+        <li class="{% if s != 'DRAFT' %}done{% endif %} {% if s == 'SENT' %}now{% endif %}"><i>2</i>Envoyée</li>
+        <li class="{% if s == 'RECEIVED' or s == 'CLOSED' %}done{% endif %} {% if s == 'PARTIAL' or s == 'RECEIVED' %}now{% endif %}"><i>3</i>{% if s == 'PARTIAL' %}Reçue en partie{% else %}Reçue{% endif %}</li>
+        <li class="{% if s == 'CLOSED' %}done now{% endif %}"><i>4</i>Clôturée</li>
+      </ol>
+      {% endif %}
+    </div>
+
+    {# ===== Produits commandés ===== #}
+    <div class="card-bar">
+      <div class="blk-title">
+        <h2>Produits commandés</h2>
+        {% if editable and can_manage %}<a href="{% url 'purchasing:line_add' order.pk %}" class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-plus-lg"></i> Ajouter un produit</a>{% endif %}
+      </div>
+
+      {% if lines %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Produit</th><th class="text-end">Commandé</th><th class="text-end">Reçu</th><th class="text-end">Unités</th>
+              {% if can_money %}<th class="text-end">Prix unitaire</th><th class="text-end">Total</th>{% endif %}
+              {% if editable and can_manage %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for l in lines %}
+            <tr>
+              <td>
+                <span class="t-name">{{ l.product_bar.product }}</span>
+                <span class="t-sub">{% if l.packaging %}{{ l.packaging.name }}{% else %}Conditionnement de {{ l.units_per_package }}{% endif %}, {{ l.units_per_package }} unité{{ l.units_per_package|pluralize }}</span>
+              </td>
+              <td class="text-end">{{ l.quantity_packages }}</td>
+              <td class="text-end">
+                {{ l.received_packages }}
+                {% widthratio l.received_packages l.quantity_packages 100 as pct %}
+                <div class="mini ms-auto"><span style="width: {{ pct }}%"></span></div>
+              </td>
+              <td class="text-end">{{ l.units_total|floatformat:"0g" }}</td>
+              {% if can_money %}
+                {% widthratio l.quantity_packages 1 l.package_cost_fcfa as line_total %}
+                <td class="text-end">{{ l.package_cost_fcfa|floatformat:"0g" }}</td>
+                <td class="text-end"><b>{{ line_total|floatformat:"0g" }}</b></td>
+              {% endif %}
+              {% if editable and can_manage %}
+              <td>
+                <div class="acts">
+                  <a href="{% url 'purchasing:line_edit' l.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill" aria-label="Modifier la ligne"><i class="bi bi-pencil"></i></a>
+                  <form method="post" action="{% url 'purchasing:line_delete' l.pk %}" onsubmit="return confirm('Supprimer cette ligne ?');">
+                    {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" aria-label="Supprimer la ligne"><i class="bi bi-trash"></i></button>
+                  </form>
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% if can_money %}
+          <tfoot>
+            <tr><td colspan="5" class="text-end">Total de la commande</td><td class="text-end">{{ order.total_fcfa|floatformat:"0g" }} FCFA</td>{% if editable and can_manage %}<td></td>{% endif %}</tr>
+          </tfoot>
+          {% endif %}
+        </table>
+      </div>
+      <p class="text-secondary small mt-2 mb-0">Le prix unitaire est le prix d'un conditionnement (casier, carton…).</p>
+      {% else %}
+        <p class="empty">Aucun produit pour le moment.{% if editable and can_manage %} Ajoutez les produits à commander, puis envoyez la commande au fournisseur.{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-4 d-grid gap-4 align-content-start">
+
+    {% if can_money %}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Paiement</h2>{% include "purchasing/_order_chips.html" with o=order show_pay=True %}</div>
+      <div class="money">
+        <div class="m"><span>Total</span><b>{{ order.total_fcfa|floatformat:"0g" }} FCFA</b></div>
+        <div class="m"><span>Déjà payé</span><b>{{ order.amount_paid_fcfa|floatformat:"0g" }} FCFA</b></div>
+        <div class="m big"><span>Reste à payer</span><b class="{% if order.balance_due_fcfa > 0 and s != 'DRAFT' and s != 'CANCELLED' %}neg{% else %}pos{% endif %}">{{ order.balance_due_fcfa|floatformat:"0g" }} FCFA</b></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Informations</h2>{% if not can_money %}{% include "purchasing/_order_chips.html" with o=order show_pay=False %}{% endif %}</div>
+      <ul class="info">
+        <li><span>Fournisseur</span><b>{% if can_manage %}<a href="{% url 'purchasing:supplier_detail' order.supplier.pk %}">{{ order.supplier.name }}</a>{% else %}{{ order.supplier.name }}{% endif %}</b></li>
+        <li><span>Commandée le</span><b>{{ order.ordered_at|date:"j F Y" }}</b></li>
+        {% if order.expected_at %}<li><span>Livraison prévue</span><b>{{ order.expected_at|date:"j F Y" }}</b></li>{% endif %}
+        {% if order.received_at %}<li><span>Dernière réception</span><b>{{ order.received_at|date:"j F Y" }}</b></li>{% endif %}
+        {% if can_money %}
+          <li><span>Mode de paiement</span><b>{% if order.on_credit %}À crédit{% else %}Au comptant{% endif %}</b></li>
+          {% if order.on_credit and order.due_date %}<li><span>Échéance</span><b>{{ order.due_date|date:"j F Y" }}</b></li>{% endif %}
+        {% endif %}
+        {% if order.created_by %}<li><span>Créée par</span><b>{% firstof order.created_by.first_name order.created_by.get_username %}</b></li>{% endif %}
+      </ul>
+      {% if order.notes %}<p class="text-secondary small mt-3 mb-0">{{ order.notes|linebreaksbr }}</p>{% endif %}
+    </div>
+
+    {% if can_money %}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Paiements enregistrés</h2></div>
+      {% for p in payments %}
+        <div class="pay">
+          <div>
+            <b>{{ p.amount_fcfa|floatformat:"0g" }} FCFA</b>
+            <span class="sub">{{ p.get_method_display }}, {{ p.paid_at|date:"j F Y" }}{% if p.reference %}, réf. {{ p.reference }}{% endif %}{% if p.paid_by %}, par {% firstof p.paid_by.first_name p.paid_by.get_username %}{% endif %}</span>
+          </div>
+          {% if can_manage %}
+          <form method="post" action="{% url 'purchasing:payment_delete' p.pk %}" onsubmit="return confirm('Supprimer ce paiement ? L\'opération restera dans le journal d\'audit.');">
+            {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" aria-label="Supprimer le paiement"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </div>
+      {% empty %}<p class="empty">Aucun paiement enregistré.</p>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endwith %}
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_sub %}{{ subtitle }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-shell { max-width: 760px; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .field { grid-column: span 1; }
+  .field.full { grid-column: span 2; }
+  .field label { font-weight: 600; margin-bottom: .35rem; display: block; }
+  .field .help { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .field .err { color: #E5534B; font-size: .85rem; margin-top: .3rem; }
+  .field .form-control, .field .form-select { padding: .7rem .9rem; }
+  .field .input-group-text { background: var(--surface-2); border-color: var(--line); color: var(--muted); font-weight: 600; font-size: .85rem; }
+  .field.switch { grid-column: span 2; padding: 1rem 1.15rem; background: var(--surface-2); border-radius: var(--radius); }
+  .field.switch .form-check { display: flex; align-items: center; gap: .75rem; margin: 0; padding: 0; min-height: 0; }
+  .field.switch .form-check-input { float: none; margin: 0; width: 2.6em; height: 1.4em; cursor: pointer; }
+  .field.switch .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+  .field.switch label { margin: 0; cursor: pointer; }
+  .total-box { grid-column: span 2; display: flex; justify-content: space-between; align-items: baseline; padding: 1rem 1.15rem; border-radius: var(--radius); background: var(--accent-soft); }
+  .total-box b { font-family: var(--font-display); font-size: calc(1.4rem * var(--title-scale)); color: var(--accent); }
+  @media (max-width: 575.98px) { .field { grid-column: span 2; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if back_args %}{% url back_url back_args.0 as back %}{% else %}{% url back_url as back %}{% endif %}
+<div class="form-shell">
+  <div class="card-bar">
+    <form method="post" class="pur-form" novalidate>
+      {% csrf_token %}
+      {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger" role="alert">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+      {% endif %}
+
+      <div class="fields">
+        {% for field in form.visible_fields %}
+          {% if field.field.widget.input_type == "checkbox" %}
+            <div class="field switch {% if field.errors %}has-error{% endif %}">
+              <div class="form-check form-switch">{{ field }}<label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+              {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+              {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+            </div>
+          {% else %}
+            <div class="field {% if field.name == 'name' or field.name == 'address' or field.name == 'notes' or field.name == 'note' or field.name == 'supplier' or field.name == 'product_bar' or field.name == 'packaging' %}full{% endif %} {% if field.errors %}has-error{% endif %}" data-field="{{ field.name }}">
+              <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="text-secondary fw-normal">(facultatif)</span>{% endif %}</label>
+              {{ field }}
+              {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+              {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        <div class="total-box" id="lineTotalBox" hidden><span>Total de la ligne</span><b id="lineTotal">0 FCFA</b></div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <button type="submit" class="btn btn-primary btn-lg">{{ submit|default:"Enregistrer" }}</button>
+        {% if back %}<a href="{{ back }}" class="btn btn-outline-secondary btn-lg rounded-pill">Annuler</a>{% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.querySelector('.pur-form');
+    if (!form) return;
+
+    form.querySelectorAll('input, select, textarea').forEach(function (el) {
+      if (el.type === 'hidden') return;
+      if (el.type === 'checkbox') { el.classList.add('form-check-input'); return; }
+      el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+      if (el.closest('.has-error')) el.classList.add('is-invalid');
+      if (el.name && /_fcfa$/.test(el.name)) {
+        var g = document.createElement('div'); g.className = 'input-group';
+        el.parentNode.insertBefore(g, el); g.appendChild(el);
+        var s = document.createElement('span'); s.className = 'input-group-text'; s.textContent = 'FCFA'; g.appendChild(s);
+      }
+    });
+
+    // Commande à crédit : l'échéance n'apparaît que si la case est cochée
+    var credit = form.querySelector('[name=on_credit]'), due = form.querySelector('[data-field=due_date]');
+    if (credit && due) {
+      var toggle = function () { due.hidden = !credit.checked; };
+      credit.addEventListener('change', toggle); toggle();
+    }
+
+    // Ligne de commande : total = nombre de conditionnements × prix d'un conditionnement
+    var qty = form.querySelector('[name=quantity_packages]'), cost = form.querySelector('[name=package_cost_fcfa]');
+    var box = document.getElementById('lineTotalBox'), out = document.getElementById('lineTotal');
+    if (qty && cost && box) {
+      var update = function () {
+        var q = parseInt(qty.value, 10), c = parseInt(cost.value, 10);
+        if (!q || !c) { box.hidden = true; return; }
+        box.hidden = false; out.textContent = (q * c).toLocaleString('fr-FR') + ' FCFA';
+      };
+      qty.addEventListener('input', update); cost.addEventListener('input', update); update();
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,4 +1,4 @@
-{% extends "navigateur/base_auth.html" %}
+{% extends "accounts/base_auth.html" %}
 
 {% block title %}Choisir un bar{% endblock %}
 
@@ -40,7 +40,7 @@
 
 <div class="au-alt d-flex flex-wrap justify-content-center gap-3">
   {% url 'accounts:new_bar' as new_bar_url %}
-  {% if new_bar_url %}<a href="{{ new_bar_url }}"><i class="bi bi-plus-circle"></i> Créer un autre bar</a>{% endif %}
+  {% if new_bar_url and can_create_bar %}<a href="{{ new_bar_url }}"><i class="bi bi-plus-circle"></i> Créer un autre bar</a>{% endif %}
   {% url 'accounts:logout' as logout_url %}
   {% if logout_url %}
   <form method="post" action="{{ logout_url }}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-link p-0 text-secondary text-decoration-none">Se déconnecter</button></form>

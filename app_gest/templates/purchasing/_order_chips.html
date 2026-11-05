@@ -1,0 +1,5 @@
+{# Pastilles d'une commande. Usage : {% include "purchasing/_order_chips.html" with o=order show_pay=True %} #}
+{% with s=o.status|upper p=o.payment_status|upper %}
+<span class="chip {% if s == 'DRAFT' %}chip-neutral{% elif s == 'SENT' %}chip-soft{% elif s == 'PARTIAL' %}chip-biere{% elif s == 'RECEIVED' %}chip-jus{% elif s == 'CLOSED' %}chip-neutral{% else %}chip-alcool{% endif %}">{{ o.get_status_display }}</span>
+{% if show_pay and s != 'DRAFT' and s != 'CANCELLED' %}<span class="chip {% if p == 'PAID' %}chip-jus{% elif p == 'PARTIAL' %}chip-biere{% else %}chip-alcool{% endif %}">{{ o.get_payment_status_display }}</span>{% endif %}
+{% endwith %}

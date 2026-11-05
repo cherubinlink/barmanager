@@ -1,0 +1,61 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Inventaires{% endblock %}
+{% block page_title %}Inventaires{% endblock %}
+{% block page_sub %}Comptez le stock réel et comparez-le au stock théorique pour repérer les écarts.{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}
+<style>
+  .counts { display: grid; gap: .75rem; }
+  .crow { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; align-items: center; gap: .75rem 1.5rem; padding: var(--pad); text-decoration: none; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); transition: transform .25s var(--ease), border-color .25s; }
+  .crow:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--ink); }
+  .crow .c-name { font-weight: 800; font-family: var(--font-display); font-size: 1.05rem; }
+  .crow .c-sub { display: block; color: var(--muted); font-size: .86rem; }
+  @media (max-width: 767.98px) { .crow { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'inventory:count_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouvel inventaire</a>
+{% endblock %}
+
+{% block content %}
+{% include "inventory/_tabs.html" with active="counts" %}
+
+{% if page.object_list %}
+<div class="counts">
+  {% for c in page.object_list %}
+  {% with s=c.status|upper %}
+  <a href="{% url 'inventory:count_detail' c.pk %}" class="crow">
+    <div>
+      <span class="c-name">Inventaire {{ c.get_period_type_display|lower }}</span>
+      <span class="c-sub">{% if c.period_start == c.period_end %}Le {{ c.period_end|date:"j F Y" }}{% else %}Du {{ c.period_start|date:"j F" }} au {{ c.period_end|date:"j F Y" }}{% endif %}</span>
+    </div>
+    <div>
+      <span class="c-sub">Compté par {% firstof c.counted_by.first_name c.counted_by.get_username %}</span>
+      {% if c.validated_at %}<span class="c-sub">Validé le {{ c.validated_at|date:"j F Y" }}{% if c.validated_by %} par {% firstof c.validated_by.first_name c.validated_by.get_username %}{% endif %}</span>{% endif %}
+    </div>
+    <span class="chip {% if s == 'VALIDATED' %}chip-jus{% elif s == 'IN_PROGRESS' %}chip-biere{% else %}chip-neutral{% endif %}">{{ c.get_status_display }}</span>
+  </a>
+  {% endwith %}
+  {% endfor %}
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">📋</div>
+  <h2 class="h5">Aucun inventaire pour le moment</h2>
+  <p class="text-secondary">Comptez vos bouteilles à la fermeture : l'application calcule les écarts et corrige le stock pour vous.</p>
+  <a href="{% url 'inventory:count_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Commencer un inventaire</a>
+</div>
+{% endif %}
+{% endblock %}

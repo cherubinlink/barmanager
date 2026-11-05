@@ -1,0 +1,79 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Stock{% endblock %}
+{% block page_title %}Stock{% endblock %}
+{% block page_sub %}Ce qu'il reste en stock, produit par produit{% if can_costs %}, avec sa valeur{% endif %}.{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}{% endblock %}
+
+{% block page_actions %}
+  {% if can_adjust %}
+    <a href="{% url 'inventory:opening_stock' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-box-arrow-in-down"></i> Stock initial</a>
+    <a href="{% url 'inventory:adjust_stock' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-sliders"></i> Ajustement</a>
+    <a href="{% url 'inventory:count_create' %}" class="btn btn-primary"><i class="bi bi-clipboard-check"></i> Nouvel inventaire</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% include "inventory/_tabs.html" with active="stock" %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Produits suivis</span>
+    <span class="value">{{ rows|length }}</span>
+    <span class="label">{% if state == "bas" %}en stock bas{% elif state == "rupture" %}en rupture{% else %}dans la liste{% endif %}</span>
+  </div></div>
+  {% if can_costs %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Valeur du stock</span>
+    <span class="value">{{ total_value|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">au prix d'achat</span>
+  </div></div>
+  {% endif %}
+</div>
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  <div class="search-box"><i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Rechercher un produit ou une marque" aria-label="Rechercher">
+  </div>
+  <select name="category" class="form-select" aria-label="Catégorie" onchange="this.form.submit()">
+    <option value="">Toutes les catégories</option>
+    {% for c in categories %}<option value="{{ c.pk }}" {% if category == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+  </select>
+  {% if q or category or state %}<a href="?" class="btn btn-link text-decoration-none">Réinitialiser</a>{% endif %}
+</form>
+
+<div class="pills">
+  <a href="?q={{ q|urlencode }}&category={{ category|urlencode }}" class="{% if not state %}on{% endif %}">Tous</a>
+  <a href="?state=bas&q={{ q|urlencode }}&category={{ category|urlencode }}" class="{% if state == 'bas' %}on{% endif %}">Stock bas</a>
+  <a href="?state=rupture&q={{ q|urlencode }}&category={{ category|urlencode }}" class="{% if state == 'rupture' %}on{% endif %}">Rupture</a>
+</div>
+
+<div class="card-bar flush">
+  <div class="table-wrap">
+    <table class="t">
+      <thead>
+        <tr><th>Produit</th><th>En stock</th><th>Seuil d'alerte</th><th>Lots</th>{% if can_costs %}<th>Valeur</th>{% endif %}<th class="l">État</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a href="{% url 'inventory:stock_product' r.pb.pk %}"><span class="nm">{{ r.pb.product.name }}{% if r.pb.product.volume_cl %} {{ r.pb.product.volume_cl }} cl{% endif %}</span><span class="sub">{{ r.pb.product.category.name }}</span></a></td>
+          <td><b class="{% if r.out %}neg{% endif %}">{{ r.qty|floatformat:"-3g" }}</b></td>
+          <td class="muted">{{ r.pb.low_stock_threshold|floatformat:"-3g" }}</td>
+          <td class="muted">{{ r.lots }}</td>
+          {% if can_costs %}<td>{{ r.value|floatformat:"0g" }}</td>{% endif %}
+          <td class="l">{% if r.out %}<span class="chip chip-alcool">Rupture</span>{% elif r.low %}<span class="chip chip-biere">Stock bas</span>{% else %}<span class="chip chip-jus">Suffisant</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="empty-row">{% if q or category or state %}Aucun produit ne correspond à ces filtres.{% else %}Aucun produit en vente. Ajoutez d'abord des produits à votre catalogue.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if can_costs and rows %}
+      <tfoot><tr><td colspan="4">Total</td><td>{{ total_value|floatformat:"0g" }} FCFA</td><td></td></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

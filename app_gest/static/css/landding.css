@@ -102,3 +102,13 @@ html { scroll-behavior: smooth; scroll-padding-top: 80px; }
 .lp-contact a:hover { color: var(--accent); }
 
 @media (max-width: 575.98px) { .ticket { transform: none; } }
+
+
+.plan { position: relative; }
+.plan-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: .2rem .9rem; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: .78rem; font-weight: 700; }
+.plan-desc { color: var(--muted); font-size: .92rem; min-height: 2.6em; }
+.plan-feats { list-style: none; padding: 0; margin: 1.25rem 0 1.5rem; display: grid; gap: .6rem; text-align: left; font-size: .93rem; }
+.plan-feats li { display: flex; align-items: flex-start; gap: .6rem; }
+.plan-feats i { color: var(--accent); flex: none; margin-top: .15rem; }
+.plan-feats .users { font-weight: 600; padding-bottom: .6rem; border-bottom: 1px dashed var(--line); }
+.plan-feats .inherit { color: var(--muted); font-style: italic; }

@@ -22,3 +22,8 @@ def resolve_membership(request):
         request.session[SESSION_KEY] = memberships[0].bar_id
         return memberships[0]
     return None
+
+
+def owns_a_bar(user):
+    """Seul le propriétaire d'un bar peut en créer un autre."""
+    return user.is_authenticated and user.owned_bars.exists()

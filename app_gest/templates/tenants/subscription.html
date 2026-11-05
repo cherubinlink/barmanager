@@ -1,0 +1,164 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Abonnement{% endblock %}
+{% block page_title %}Abonnement{% endblock %}
+{% block page_sub %}Suivez votre abonnement et déclarez vos paiements.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .sub-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 2rem; }
+  .sub-days { font-family: var(--font-display); font-weight: 800; font-size: calc(3rem * var(--title-scale)); line-height: 1; }
+  .sub-days small { font-size: .35em; color: var(--muted); font-weight: 600; }
+  .lvl-ok .sub-days { color: #3FAE6A; } .lvl-warning .sub-days { color: #E8991C; } .lvl-danger .sub-days { color: #E5534B; }
+
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .field { grid-column: span 2; }
+  .field.half { grid-column: span 1; }
+  .field label { font-weight: 600; margin-bottom: .35rem; display: block; }
+  .field .help { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .field .err { color: #E5534B; font-size: .85rem; margin-top: .3rem; }
+  .field .form-control, .field .form-select { padding: .7rem .9rem; }
+  .total-box { grid-column: span 2; display: flex; justify-content: space-between; align-items: baseline; padding: 1rem 1.15rem; border-radius: var(--radius); background: var(--accent-soft); }
+  .total-box b { font-family: var(--font-display); font-size: calc(1.6rem * var(--title-scale)); color: var(--accent); }
+  @media (max-width: 575.98px) { .field.half { grid-column: span 2; } }
+
+  .plan-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .85rem 0; border-bottom: 1px dashed var(--line); }
+  .plan-row:last-child { border-bottom: 0; }
+  .plan-row .pn { font-weight: 700; }
+  .plan-row .ps { color: var(--muted); font-size: .86rem; }
+  .plan-row b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pay-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 0; border-bottom: 1px dashed var(--line); }
+  .pay-row:last-child { border-bottom: 0; }
+  .pay-row .ps { display: block; color: var(--muted); font-size: .84rem; }
+  .instr { white-space: normal; padding: 1rem 1.15rem; border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface-2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <div class="col-lg-7 d-grid gap-4 align-content-start">
+
+    {# ===== État de l'abonnement ===== #}
+    <div class="card-bar {% if subscription_info %}lvl-{{ subscription_info.level }}{% endif %}">
+      <div class="sub-hero">
+        <div>
+          <div class="text-secondary">Abonnement{% if sub.plan %}, formule {{ sub.plan.name }}{% endif %}</div>
+          {% if subscription_info %}
+            {% if subscription_info.expired %}
+              <div class="sub-days">Expiré</div>
+              <div class="text-secondary">Depuis {{ subscription_info.days_abs }} jour{{ subscription_info.days_abs|pluralize }}. Le compte est en lecture seule.</div>
+            {% else %}
+              <div class="sub-days">{{ subscription_info.days }} <small>jour{{ subscription_info.days|pluralize }} restant{{ subscription_info.days|pluralize }}</small></div>
+              <div class="text-secondary">Jusqu'au {{ subscription_info.end|date:"l j F Y" }}</div>
+            {% endif %}
+          {% else %}
+            <div class="sub-days" style="font-size:1.6rem">{{ sub.get_status_display }}</div>
+          {% endif %}
+        </div>
+        <span class="chip chip-soft ms-auto">{{ sub.get_status_display }}</span>
+      </div>
+    </div>
+
+    {# ===== Déclarer un paiement ===== #}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Déclarer un paiement</h2></div>
+
+      {% if has_pending %}
+        <div class="alert alert-warning mb-0" role="status">
+          <i class="bi bi-hourglass-split"></i> Un paiement est en attente de validation par l'administrateur. Vous pourrez en déclarer un autre une fois celui-ci traité.
+        </div>
+      {% else %}
+        <form method="post" enctype="multipart/form-data" class="pay-form" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+          {% endif %}
+
+          <div class="fields">
+            {% for field in form.visible_fields %}
+            <div class="field {% if field.name == 'periods' or field.name == 'method' %}half{% endif %} {% if field.errors %}has-error{% endif %}">
+              <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="text-secondary fw-normal">(facultatif)</span>{% endif %}</label>
+              {{ field }}
+              {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+              {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+            </div>
+            {% endfor %}
+
+            <div class="total-box"><span>Montant à payer</span><b id="totalOut">0 FCFA</b></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg w-100 mt-4"><i class="bi bi-send"></i> Déclarer mon paiement</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5 d-grid gap-4 align-content-start">
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Comment payer</h2></div>
+      <div class="instr">{{ instructions|linebreaksbr }}</div>
+      <p class="text-secondary small mt-3 mb-0">Après votre paiement, déclarez-le ici avec la référence de la transaction. Votre abonnement est prolongé dès que l'administrateur l'a validé.<br>694 510 102 / 682 950 867</p>
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Formules</h2></div>
+      {% for plan in plans %}
+        <div class="plan-row">
+          <div>
+            <div class="pn">{{ plan.name }}</div>
+            <div class="ps">{% if plan.max_users %}Jusqu'à {{ plan.max_users }} utilisateur{{ plan.max_users|pluralize }}{% else %}Utilisateurs illimités{% endif %}</div>
+          </div>
+          <b>{{ plan.price_fcfa|floatformat:"0g" }} FCFA</b>
+        </div>
+      {% empty %}<p class="text-secondary mb-0">Aucune formule disponible pour le moment.</p>{% endfor %}
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Derniers paiements</h2></div>
+      {% for p in payments %}
+        {% with s=p.status|lower %}
+        <div class="pay-row">
+          <div>
+            <b>{{ p.amount_fcfa|floatformat:"0g" }} FCFA</b>
+            <span class="ps">{{ p.plan.name }}, {{ p.get_method_display }}, réf. {{ p.reference }}</span>
+          </div>
+          <span class="chip {% if s == 'pending' %}chip-biere{% elif s == 'rejected' %}chip-alcool{% else %}chip-jus{% endif %}">{{ p.get_status_display }}</span>
+        </div>
+        {% endwith %}
+      {% empty %}<p class="text-secondary mb-0">Aucun paiement déclaré pour le moment.</p>{% endfor %}
+    </div>
+  </div>
+
+</div>
+
+{# Prix des formules, pour calculer le montant affiché (le serveur le recalcule toujours) #}
+<script id="planPrices" type="application/json">{ {% for p in plans %}"{{ p.pk }}": {{ p.price_fcfa|unlocalize }}{% if not forloop.last %}, {% endif %}{% endfor %} }</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.querySelector('.pay-form');
+    if (!form) return;
+    form.querySelectorAll('input, select, textarea').forEach(function (el) {
+      if (['hidden', 'checkbox', 'radio'].indexOf(el.type) !== -1) return;
+      el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+      if (el.closest('.has-error')) el.classList.add('is-invalid');
+    });
+
+    var prices = JSON.parse(document.getElementById('planPrices').textContent || '{}');
+    var plan = document.getElementById('{{ form.plan.id_for_label }}');
+    var periods = document.getElementById('{{ form.periods.id_for_label }}');
+    var out = document.getElementById('totalOut');
+    function update() {
+      var total = (prices[plan.value] || 0) * (parseInt(periods.value, 10) || 0);
+      out.textContent = total.toLocaleString('fr-FR') + ' FCFA';
+    }
+    [plan, periods].forEach(function (el) { el && el.addEventListener('input', update); });
+    update();
+  })();
+</script>
+{% endblock %}

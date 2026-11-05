@@ -85,7 +85,7 @@
 
   <!-- ===== Barre latérale ===== -->
   <aside class="sidebar" id="sidebar" aria-label="Navigation principale">
-    <a href="{% firstof u_home '/' %}" class="brand">
+    <a href="{% url 'pages:home' %}" class="brand">
       <span class="brand-mark"><i class="bi bi-cup-straw"></i></span>
       <span class="brand-name">{{ site_name|default:"BarManager" }}</span>
     </a>
@@ -101,7 +101,8 @@
     {% endif %}
 
     <nav class="nav-list">
-      <a href="{% firstof u_home '#' %}" class="nav-item{% if not u_home %} disabled{% endif %}"{% if not u_home %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-grid-1x2"></i><span>Tableau de bord</span></a>
+      {% url 'dashboard:homes' as u_home %}
+      <a href="{% firstof u_home '#' %}" class="nav-item{% if not u_home %} disabled{% endif %}" ><i class="bi bi-grid-1x2"></i><span>Tableau de bord</span></a>
       <a href="{% firstof u_tickets '#' %}" class="nav-item{% if not u_tickets %} disabled{% endif %}"{% if not u_tickets %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-receipt"></i><span>Caisse</span></a>
       <a href="{% firstof u_products '#' %}" class="nav-item{% if not u_products %} disabled{% endif %}"{% if not u_products %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-cup-hot"></i><span>Boissons et prix</span></a>
       <a href="{% firstof u_stock '#' %}" class="nav-item{% if not u_stock %} disabled{% endif %}"{% if not u_stock %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-box-seam"></i><span>Stock</span></a>
@@ -109,7 +110,7 @@
       <a href="{% firstof u_credits '#' %}" class="nav-item{% if not u_credits %} disabled{% endif %}"{% if not u_credits %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-wallet2"></i><span>Crédits</span></a>
       <a href="{% firstof u_stats '#' %}" class="nav-item{% if not u_stats %} disabled{% endif %}"{% if not u_stats %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-bar-chart-line"></i><span>Statistiques</span></a>
       <a href="{% firstof u_chat '#' %}" class="nav-item{% if not u_chat %} disabled{% endif %}"{% if not u_chat %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-chat-dots"></i><span>Messagerie</span></a>
-      <a href="{% firstof u_team '#' %}" class="nav-item{% if not u_team %} disabled{% endif %}"{% if not u_team %} aria-disabled="true" title="Page bientôt disponible" onclick="return false"{% endif %}><i class="bi bi-people"></i><span>Équipe</span></a>
+      <a href="{% url 'accounts:team' %}" class="nav-item"><i class="bi bi-people"></i><span>Équipe</span></a>
     </nav>
 
     <button class="nav-item nav-collapse" id="collapseBtn" type="button">
@@ -164,12 +165,14 @@
           </button>
           <div class="dropdown-menu dropdown-menu-end user-menu">
             <div class="who">
+              <div class="dropdown-item-text small text-secondary">test : {% if can_create_bar %}oui{% elif can_create_bar == False %}non{% else %}absent{% endif %}</div>
               <b>{% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.get_username }}{% endif %}</b>
               <small>{% if bar %}{{ bar.name }}, {% if membership.is_owner %}gérant{% else %}{{ membership.role }}{% endif %}{% else %}{{ user.get_username }}{% endif %}</small>
             </div>
             <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-person-circle"></i> Mon profil</a>
             {% if select_bar_url and bar_count > 1 %}<a class="dropdown-item" href="{{ select_bar_url }}"><i class="bi bi-arrow-left-right"></i> Changer de bar</a>{% endif %}
-            {% if new_bar_url %}<a class="dropdown-item" href="{{ new_bar_url }}"><i class="bi bi-plus-circle"></i> Créer un autre bar</a>{% endif %}
+           {% if new_bar_url and can_create_bar %}<a class="dropdown-item" href="{{ new_bar_url }}"><i class="bi bi-plus-circle"></i> Créer un autre bar</a>{% endif %}
             {% if u_team %}<a class="dropdown-item" href="{{ u_team }}"><i class="bi bi-people"></i> Équipe et rôles</a>{% endif %}
             {% if logout_url %}
             <div class="dropdown-divider"></div>

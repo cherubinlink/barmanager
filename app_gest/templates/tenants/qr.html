@@ -1,0 +1,87 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}QR code du bar{% endblock %}
+{% block page_title %}QR code du bar{% endblock %}
+{% block page_sub %}Vos clients le scannent pour voir le menu et les prix de {{ bar.name }}.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .qr-wrap { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 1.5rem; align-items: start; }
+  .poster { text-align: center; padding: 2rem 1.5rem; }
+  .poster .p-name { font-family: var(--font-display); font-weight: 800; font-size: calc(1.8rem * var(--title-scale)); line-height: 1.1; }
+  .poster .p-sub { color: var(--muted); margin: .4rem 0 1.25rem; }
+  .qr-img { width: min(100%, 300px); aspect-ratio: 1; padding: 14px; background: #fff; border-radius: calc(var(--radius) * .8); border: 1px solid var(--line); }
+  .poster .p-code { margin-top: 1.25rem; color: var(--muted); }
+  .poster .p-code b { display: inline-block; margin-top: .25rem; padding: .25rem .9rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 1.3rem; letter-spacing: .08em; }
+
+  .link-box { display: flex; gap: .5rem; align-items: stretch; }
+  .link-box input { flex: 1; min-width: 0; padding: .65rem .9rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--ink); font-size: .9rem; }
+  .tips { list-style: none; padding: 0; margin: 0; display: grid; gap: .8rem; }
+  .tips li { display: flex; gap: .75rem; }
+  .tips i { color: var(--accent); font-size: 1.2rem; flex: none; }
+  @media (max-width: 991.98px) { .qr-wrap { grid-template-columns: 1fr; } }
+
+  @media print {
+    @page { margin: 12mm; }
+    body * { visibility: hidden; }
+    .poster, .poster * { visibility: visible; }
+    .poster { position: fixed; inset: 0; margin: auto; width: 100%; height: fit-content; box-shadow: none; border: 0; background: #fff !important; color: #111 !important; }
+    .poster .p-sub, .poster .p-code { color: #444 !important; }
+    .poster .p-code b { background: none; border: 2px solid #111; color: #111; }
+    .qr-img { width: 80mm; border: 0; }
+  }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  {% url 'tenants:qr_png' as png_url %}{% if not png_url %}{% url 'tenants:bar_qr_png' as png_url %}{% endif %}
+  {% if png_url %}<a href="{{ png_url }}" download="qr-{{ bar.client_code }}.png" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-download"></i> Télécharger</a>{% endif %}
+  <button type="button" class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer l'affiche</button>
+{% endblock %}
+
+{% block content %}
+{% url 'tenants:qr_png' as png_url %}{% if not png_url %}{% url 'tenants:bar_qr_png' as png_url %}{% endif %}
+
+<div class="qr-wrap">
+  <div class="card-bar poster">
+    <div class="p-name">{{ bar.name }}</div>
+    <div class="p-sub">Scannez pour voir notre menu et nos prix</div>
+    {% if png_url %}<img class="qr-img" src="{{ png_url }}" alt="QR code de {{ bar.name }}">{% endif %}
+    <div class="p-code">Ou entrez le code du bar<br><b>{{ bar.client_code }}</b></div>
+  </div>
+
+  <div class="d-grid gap-3">
+    <div class="card-bar">
+      <div class="blk-title"><h2>Lien direct</h2></div>
+      <div class="link-box">
+        <input type="text" id="publicUrl" value="{{ public_url }}" readonly aria-label="Lien public du bar">
+        <button type="button" class="btn btn-primary" id="copyBtn"><i class="bi bi-clipboard"></i> Copier</button>
+      </div>
+      <p class="text-secondary small mt-2 mb-0">Partagez-le sur WhatsApp ou vos réseaux : il ouvre directement le menu du bar.</p>
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Bien l'utiliser</h2></div>
+      <ul class="tips">
+        <li><i class="bi bi-printer"></i><span>Imprimez l'affiche et collez-la sur les tables et au comptoir.</span></li>
+        <li><i class="bi bi-phone"></i><span>Aucune application à installer : le client scanne avec l'appareil photo de son téléphone.</span></li>
+        <li><i class="bi bi-arrow-repeat"></i><span>Si vous changez le code client dans les réglages, les QR codes déjà imprimés continuent de fonctionner.</span></li>
+        {% if not bar.qr_ordering_enabled %}
+        <li><i class="bi bi-info-circle"></i><span>La commande par QR code est désactivée : vos clients voient seulement le menu. Vous pouvez l'activer dans <a href="{% url 'tenants:settings' %}">les réglages du bar</a>.</span></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById('copyBtn').addEventListener('click', function () {
+    var input = document.getElementById('publicUrl');
+    var done = function () { if (window.BarUI) BarUI.toast('Lien copié'); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(input.value).then(done); }
+    else { input.select(); document.execCommand('copy'); done(); }
+  });
+</script>
+{% endblock %}

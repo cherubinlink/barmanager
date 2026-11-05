@@ -2,6 +2,7 @@ from django.conf import settings
 from django.shortcuts import render
 
 from tenants.models import TRIAL_DAYS, Plan
+from tenants.plans import annotate_plans
 
 # Create your views here.
 
@@ -155,7 +156,7 @@ def home(request):
     context = {
         "site_name": getattr(settings, "SITE_NAME", "BarManager"),
         "trial_days": TRIAL_DAYS,
-        "plans": Plan.objects.filter(is_active=True),
+        "plans": annotate_plans(Plan.objects.filter(is_active=True).order_by("price_fcfa")),
         "features": FEATURES,
         "problems": PROBLEMS,
         "steps": STEPS,

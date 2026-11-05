@@ -195,23 +195,43 @@
     </div>
     <div class="row g-4 justify-content-center">
       {% for plan in plans %}
-      <div class="col-md-6 col-lg-4">
-        <div class="card-bar plan h-100 {% if forloop.counter == 2 %}plan-main{% endif %}">
-          <h3>{{ plan.name }}</h3>
-          <div class="plan-price">{{ plan.price }} <small>FCFA</small></div>
-          {% if plan.duration_days %}<p class="plan-dur">pour {{ plan.duration_days }} jours</p>{% endif %}
-          {% if plan.description %}<p>{{ plan.description }}</p>{% endif %}
-          <a href="{{ register_url }}" class="btn {% if forloop.counter == 2 %}btn-primary{% else %}btn-outline-secondary rounded-pill{% endif %} w-100 mt-auto">Commencer l'essai</a>
-        </div>
-      </div>
-      {% empty %}
-      <div class="col-md-8 text-center">
-        <div class="card-bar">
-          <p class="mb-3">Les tarifs seront affichés ici prochainement. Contactez-nous pour connaître l'offre en vigueur.</p>
-          <a href="{{ register_url }}" class="btn btn-primary">Commencer l'essai gratuit</a>
-        </div>
-      </div>
-      {% endfor %}
+  {% cycle 'plan-c1' 'plan-c2' 'plan-c3' 'plan-c4' as plancolor silent %}
+  <div class="col-md-6 col-xl-3">
+    <div class="card-bar plan h-100 {{ plancolor }} {% if plans|length > 2 and forloop.counter == 2 %}plan-main{% endif %}">
+      {% if plans|length > 2 and forloop.counter == 2 %}<span class="plan-badge">Recommandé</span>{% endif %}
+
+      <h3>{{ plan.name }}</h3>
+      {% if plan.description %}<p class="plan-desc">{{ plan.description }}</p>{% endif %}
+
+      <div class="plan-price">{{ plan.price_fcfa|floatformat:"0g" }} <small>FCFA</small></div>
+      <p class="plan-dur">pour {% if plan.duration_days %}{{ plan.duration_days }}{% else %}30{% endif %} jours</p>
+
+      <ul class="plan-feats">
+        <li class="users">
+          <i class="bi bi-people-fill"></i>
+          {% if plan.max_users == 1 %}1 utilisateur
+          {% elif plan.max_users %}Jusqu'à {{ plan.max_users }} utilisateurs
+          {% else %}Utilisateurs illimités{% endif %}
+        </li>
+        {% if plan.inherits_from %}
+          <li class="inherit"><i class="bi bi-arrow-return-right"></i> Toutes les fonctionnalités {{ plan.inherits_from }}</li>
+        {% endif %}
+        {% for label in plan.new_features %}
+          <li><i class="bi bi-check-circle-fill"></i> {{ label }}</li>
+        {% endfor %}
+      </ul>
+
+      <a href="{{ register_url }}" class="btn {% if plans|length > 2 and forloop.counter == 2 %}btn-primary{% else %}btn-outline-secondary rounded-pill{% endif %} w-100 mt-auto">Commencer l'essai</a>
+    </div>
+  </div>
+{% empty %}
+  <div class="col-md-8 text-center">
+    <div class="card-bar">
+      <p class="mb-3">Les tarifs seront affichés ici prochainement. Contactez-nous pour connaître l'offre en vigueur.</p>
+      <a href="{{ register_url }}" class="btn btn-primary">Commencer l'essai gratuit</a>
+    </div>
+  </div>
+{% endfor %}
     </div>
     <p class="text-center text-secondary mt-4 mb-0">Paiement manuel, par exemple Mobile Money : vous déclarez le paiement, l'administrateur le valide.</p>
   </div>

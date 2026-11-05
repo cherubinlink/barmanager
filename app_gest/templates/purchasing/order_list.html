@@ -1,0 +1,142 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Commandes au dépôt{% endblock %}
+{% block page_title %}Commandes au dépôt{% endblock %}
+{% block page_sub %}Vos commandes aux fournisseurs, de la préparation à la réception{% if can_money %} et au paiement{% endif %}.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 480px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  .orders { display: grid; gap: .75rem; }
+  .orow { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; align-items: center; gap: .75rem 1.5rem; padding: var(--pad); text-decoration: none; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); transition: transform .25s var(--ease), border-color .25s; }
+  .orow:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--ink); }
+  .o-ref { font-weight: 800; font-family: var(--font-display); font-size: 1.05rem; }
+  .o-sub { display: block; color: var(--muted); font-size: .86rem; }
+  .o-amount { font-variant-numeric: tabular-nums; }
+  .o-amount b { display: block; }
+  .o-chips { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: flex-end; }
+  .late { color: #E5534B; font-weight: 600; }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+  @media (max-width: 767.98px) { .orow { grid-template-columns: 1fr; } .o-chips { justify-content: flex-start; } }
+
+  .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.75rem; color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+  .stat .value.neg { color: #E5534B; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  {% if can_money %}
+    <a href="{% url 'purchasing:supplier_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-shop-window"></i> Fournisseurs</a>
+    <a href="{% url 'purchasing:order_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouvelle commande</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">À réceptionner</span>
+    <span class="value">{{ to_receive }}</span>
+    <span class="label">commande{{ to_receive|pluralize }} en attente de livraison</span>
+  </div></div>
+  {% if summary %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Dettes fournisseurs</span>
+    <span class="value {% if summary.debt > 0 %}neg{% endif %}">{{ summary.debt|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ summary.count }} commande{{ summary.count|pluralize }} à payer</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Paiements en retard</span>
+    <span class="value {% if summary.overdue %}neg{% endif %}">{{ summary.overdue }}</span>
+    <span class="label">{% if summary.overdue %}Échéance dépassée{% else %}Aucun retard{% endif %}</span>
+  </div></div>
+  {% endif %}
+</div>
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  <div class="search-box">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Référence ou fournisseur" aria-label="Rechercher une commande">
+  </div>
+  {% if q %}<a href="?state={{ state }}" class="btn btn-link text-decoration-none">Effacer</a>{% endif %}
+  <span class="ms-auto text-secondary small">{{ page.paginator.count }} commande{{ page.paginator.count|pluralize }}</span>
+</form>
+
+<div class="pills">
+  <a href="?q={{ q|urlencode }}" class="{% if not state %}on{% endif %}">En cours</a>
+  <a href="?state=brouillons&q={{ q|urlencode }}" class="{% if state == 'brouillons' %}on{% endif %}">Brouillons</a>
+  <a href="?state=a_recevoir&q={{ q|urlencode }}" class="{% if state == 'a_recevoir' %}on{% endif %}">À recevoir</a>
+  {% if can_money %}
+    <a href="?state=a_payer&q={{ q|urlencode }}" class="{% if state == 'a_payer' %}on{% endif %}">À payer</a>
+    <a href="?state=retard&q={{ q|urlencode }}" class="{% if state == 'retard' %}on{% endif %}">En retard</a>
+  {% endif %}
+  <a href="?state=terminees&q={{ q|urlencode }}" class="{% if state == 'terminees' %}on{% endif %}">Terminées</a>
+  <a href="?state=annulees&q={{ q|urlencode }}" class="{% if state == 'annulees' %}on{% endif %}">Annulées</a>
+</div>
+
+{% if page.object_list %}
+<div class="orders">
+  {% for o in page.object_list %}
+  {% with s=o.status|upper %}
+  <a href="{% url 'purchasing:order_detail' o.pk %}" class="orow">
+    <div>
+      <span class="o-ref">{{ o.reference }}</span>
+      <span class="o-sub">{{ o.supplier.name }}, commandée le {{ o.ordered_at|date:"j F Y" }}</span>
+    </div>
+    <div class="o-amount">
+      {% if can_money %}
+        <b>{{ o.total_fcfa|floatformat:"0g" }} FCFA</b>
+        {% if s != 'DRAFT' and s != 'CANCELLED' %}
+          {% if o.balance_due_fcfa > 0 %}
+            <span class="o-sub {% if o.due_date and o.due_date < today %}late{% endif %}">Reste {{ o.balance_due_fcfa|floatformat:"0g" }} FCFA{% if o.due_date %}, échéance le {{ o.due_date|date:"j F" }}{% endif %}</span>
+          {% else %}<span class="o-sub">Soldée</span>{% endif %}
+        {% endif %}
+      {% elif o.expected_at %}
+        <span class="o-sub">Livraison prévue le {{ o.expected_at|date:"j F Y" }}</span>
+      {% endif %}
+    </div>
+    <div class="o-chips">
+      {% include "purchasing/_order_chips.html" with o=o show_pay=can_money %}
+      {% if can_money and o.due_date and o.due_date < today and o.balance_due_fcfa > 0 and s != 'DRAFT' and s != 'CANCELLED' %}<span class="chip chip-alcool">En retard</span>{% endif %}
+    </div>
+  </a>
+  {% endwith %}
+  {% endfor %}
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🚚</div>
+  {% if q or state %}
+    <h2 class="h5">Aucune commande ne correspond</h2>
+    <a href="?" class="btn btn-outline-secondary rounded-pill">Voir les commandes en cours</a>
+  {% else %}
+    <h2 class="h5">Aucune commande pour le moment</h2>
+    <p class="text-secondary">Commandez vos casiers et cartons au dépôt : chaque réception met votre stock à jour.</p>
+    {% if can_money %}<a href="{% url 'purchasing:order_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Créer ma première commande</a>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}{{ supplier.name }}{% endblock %}
+{% block page_title %}{{ supplier.name }}{% endblock %}
+{% block page_sub %}{% if supplier.contact_name %}Contact : {{ supplier.contact_name }}.{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
+  .kpi .k-l { color: var(--muted); font-size: .88rem; }
+  .kpi .k-v { font-family: var(--font-display); font-weight: 800; font-size: calc(1.6rem * var(--title-scale)); line-height: 1.1; }
+  .kpi .k-v small { font-family: var(--font-body); font-size: .45em; color: var(--muted); font-weight: 600; }
+  .k-neg { color: #E5534B; } .k-pos { color: #3FAE6A; }
+  .info { list-style: none; margin: 0; padding: 0; display: grid; gap: .85rem; }
+  .info li { display: flex; gap: .8rem; align-items: flex-start; }
+  .info i { color: var(--accent); font-size: 1.1rem; margin-top: .1rem; flex: none; }
+  .info a { color: var(--ink); text-decoration: none; } .info a:hover { color: var(--accent); }
+  .info .muted { color: var(--muted); }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li a { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1rem; padding: .8rem 0; border-bottom: 1px dashed var(--line); text-decoration: none; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .rows li:last-child a { border-bottom: 0; }
+  .rows li a:hover .ref { color: var(--accent); }
+  .rows .ref { font-weight: 700; }
+  .rows .sub { display: block; color: var(--muted); font-size: .84rem; font-weight: 400; }
+  .rows .right { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; }
+  .empty { color: var(--muted); margin: 0; padding: .35rem 0; }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'purchasing:supplier_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Fournisseurs</a>
+  <form method="post" action="{% url 'purchasing:supplier_toggle' supplier.pk %}" class="m-0">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-secondary rounded-pill">{% if supplier.is_active %}<i class="bi bi-eye-slash"></i> Désactiver{% else %}<i class="bi bi-eye"></i> Réactiver{% endif %}</button>
+  </form>
+  <a href="{% url 'purchasing:supplier_edit' supplier.pk %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-pencil"></i> Modifier</a>
+  {% if supplier.is_active %}<a href="{% url 'purchasing:order_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouvelle commande</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if not supplier.is_active %}
+  <div class="alert alert-secondary" role="status"><i class="bi bi-eye-slash"></i> Ce fournisseur est désactivé : il n'apparaît plus dans les nouvelles commandes.</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <div class="col-lg-7 d-grid gap-4 align-content-start">
+    <div class="card-bar">
+      <div class="kpis">
+        <div class="kpi"><div class="k-l">Total commandé</div><div class="k-v">{{ billed|floatformat:"0g" }} <small>FCFA</small></div></div>
+        <div class="kpi"><div class="k-l">Déjà payé</div><div class="k-v">{{ paid|floatformat:"0g" }} <small>FCFA</small></div></div>
+        <div class="kpi"><div class="k-l">Reste à payer</div><div class="k-v {% if debt > 0 %}k-neg{% else %}k-pos{% endif %}">{% if debt > 0 %}{{ debt|floatformat:"0g" }} <small>FCFA</small>{% else %}À jour{% endif %}</div></div>
+      </div>
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Dernières commandes</h2></div>
+      <ul class="rows">
+        {% for o in orders %}
+        <li>
+          <a href="{% url 'purchasing:order_detail' o.pk %}">
+            <span><span class="ref">{{ o.reference }}</span><span class="sub">Commandée le {{ o.ordered_at|date:"j F Y" }}</span></span>
+            <span class="right">
+              <b>{{ o.total_fcfa|floatformat:"0g" }} FCFA</b>
+              {% include "purchasing/_order_chips.html" with o=o show_pay=True %}
+            </span>
+          </a>
+        </li>
+        {% empty %}<li class="empty">Aucune commande pour ce fournisseur.</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-bar">
+      <div class="blk-title"><h2>Coordonnées</h2></div>
+      <ul class="info">
+        {% if supplier.contact_name %}<li><i class="bi bi-person"></i><span>{{ supplier.contact_name }}</span></li>{% endif %}
+        {% if supplier.phone %}<li><i class="bi bi-telephone"></i><a href="tel:{{ supplier.phone }}">{{ supplier.phone }}</a></li>{% endif %}
+        {% if supplier.email %}<li><i class="bi bi-envelope"></i><a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a></li>{% endif %}
+        {% if supplier.address %}<li><i class="bi bi-geo-alt"></i><span>{{ supplier.address }}</span></li>{% endif %}
+        {% if supplier.notes %}<li><i class="bi bi-journal-text"></i><span class="muted">{{ supplier.notes|linebreaksbr }}</span></li>{% endif %}
+        {% if not supplier.contact_name and not supplier.phone and not supplier.email and not supplier.address and not supplier.notes %}
+          <li><span class="muted">Aucune coordonnée renseignée. Utilisez « Modifier » pour en ajouter.</span></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

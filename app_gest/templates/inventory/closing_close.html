@@ -1,0 +1,121 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Clôturer la journée{% endblock %}
+{% block page_title %}Clôturer la journée{% endblock %}
+{% block page_sub %}{{ day|date:"l j F Y" }}. Comptez la caisse, vérifiez le stock, puis clôturez.{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}
+<style>
+  .cash-expected { font-family: var(--font-display); font-weight: 800; font-size: calc(2.2rem * var(--title-scale)); color: var(--accent); line-height: 1.1; }
+  .gap-box { margin-top: 1rem; padding: .9rem 1.1rem; border-radius: var(--radius); background: var(--surface-2); display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+  .gap-box b { font-family: var(--font-display); font-size: 1.3rem; }
+  .gap-box.ok { background: rgba(63,174,106,.14); } .gap-box.bad { background: rgba(229,83,75,.14); }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'inventory:closing_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Clôtures</a>
+{% endblock %}
+
+{% block content %}
+
+{% if open_tickets %}
+  {% url 'sales:ticket_list' as tickets_url %}
+  <div class="alert alert-danger" role="alert">
+    <i class="bi bi-exclamation-octagon"></i> Il reste <b>{{ open_tickets }}</b> ticket{{ open_tickets|pluralize }} ouvert{{ open_tickets|pluralize }}.
+    Finalisez-les ou annulez-les avant de clôturer.{% if tickets_url %} <a href="{{ tickets_url }}" class="alert-link">Voir les tickets</a>{% endif %}
+  </div>
+{% endif %}
+
+<div class="row g-4">
+
+  <div class="col-lg-5 d-grid gap-4 align-content-start">
+    <div class="card-bar">
+      <div class="blk-title"><h2>La caisse</h2></div>
+      <div class="text-secondary">Espèces attendues en caisse</div>
+      <div class="cash-expected">{{ cash_expected|floatformat:"0g" }} <small style="font-size:.4em;color:var(--muted)">FCFA</small></div>
+      <p class="text-secondary small mt-2 mb-0">Encaissements en espèces de la journée, remboursements déduits.</p>
+
+      <form method="post" class="close-form mt-4" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="date" value="{{ day|date:'Y-m-d' }}">
+        {% if form.non_field_errors %}<div class="alert alert-danger">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+
+        <div class="d-grid gap-3">
+          {% for field in form.visible_fields %}
+          <div class="field {% if field.errors %}has-error{% endif %}">
+            <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="text-secondary fw-normal">(facultatif)</span>{% endif %}</label>
+            {{ field }}
+            {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+            {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="gap-box" id="gapBox" data-expected="{% localize off %}{{ cash_expected }}{% endlocalize %}" hidden><span>Écart de caisse</span><b id="gapVal">0</b></div>
+
+        <button type="submit" class="btn btn-primary btn-lg w-100 mt-4" {% if open_tickets %}disabled{% endif %}><i class="bi bi-lock"></i> Clôturer la journée</button>
+        <p class="text-secondary small mt-2 mb-0">Une journée clôturée est conservée : elle ne peut plus être modifiée.</p>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card-bar flush">
+      <div class="p-3 pb-2"><div class="blk-title mb-0"><h2>Mouvements de stock du jour</h2></div></div>
+      <div class="table-wrap">
+        <table class="t">
+          <thead><tr><th>Produit</th><th>Ouverture</th><th>Entrées</th><th>Ventes</th><th>Pertes</th><th>Ajust.</th><th>Clôture</th></tr></thead>
+          <tbody>
+            {% for r in report %}
+            <tr>
+              <td><span class="nm">{{ r.product_bar.product }}</span></td>
+              <td class="muted">{{ r.opening|floatformat:"-3g" }}</td>
+              <td class="{% if r.purchased %}pos{% else %}muted{% endif %}">{{ r.purchased|floatformat:"-3g" }}</td>
+              <td>{{ r.sold|floatformat:"-3g" }}</td>
+              <td class="{% if r.lost %}neg{% else %}muted{% endif %}">{{ r.lost|floatformat:"-3g" }}</td>
+              <td class="muted">{{ r.adjust|floatformat:"-3g" }}</td>
+              <td><b class="{% if r.closing <= 0 %}neg{% endif %}">{{ r.closing|floatformat:"-3g" }}</b></td>
+            </tr>
+            {% empty %}<tr><td colspan="7" class="empty-row">Aucun mouvement de stock ce jour.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.querySelector('.close-form');
+    if (!form) return;
+    form.querySelectorAll('input:not([type=hidden]), select, textarea').forEach(function (el) {
+      el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+      if (el.closest('.has-error')) el.classList.add('is-invalid');
+      if (el.name === 'cash_counted_fcfa') {
+        var g = document.createElement('div'); g.className = 'input-group';
+        el.parentNode.insertBefore(g, el); g.appendChild(el);
+        var s = document.createElement('span'); s.className = 'input-group-text'; s.textContent = 'FCFA'; g.appendChild(s);
+      }
+    });
+
+    // Écart de caisse en direct
+    var cash = form.querySelector('[name=cash_counted_fcfa]'), box = document.getElementById('gapBox'), val = document.getElementById('gapVal');
+    if (cash && box) {
+      var expected = parseFloat(box.dataset.expected) || 0;
+      var update = function () {
+        if (cash.value === '') { box.hidden = true; return; }
+        var d = (parseFloat(cash.value) || 0) - expected;
+        box.hidden = false;
+        box.className = 'gap-box ' + (d === 0 ? 'ok' : 'bad');
+        val.textContent = d === 0 ? 'Aucun écart' : (d > 0 ? '+' : '') + d.toLocaleString('fr-FR') + ' FCFA';
+      };
+      cash.addEventListener('input', update); update();
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Boissons et prix{% endblock %}
+{% block page_title %}Boissons et prix{% endblock %}
+{% block page_sub %}Les produits que vous vendez, avec vos prix{% if can_costs %}, vos marges{% endif %}{% if can_stock %} et votre stock{% endif %}.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .filters select { width: auto; max-width: 220px; border-radius: 999px; background-color: var(--surface); border-color: var(--line); color: var(--ink); padding: .65rem 2.2rem .65rem 1rem; }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .count { color: var(--muted); font-size: .9rem; margin-left: auto; }
+
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+  .pcard { display: flex; flex-direction: column; gap: .35rem; padding: var(--pad); text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); transition: transform .25s var(--ease), border-color .25s; }
+  .pcard:hover { transform: translateY(-3px); border-color: var(--accent); color: var(--ink); }
+  .pcard.off { opacity: .6; }
+  .p-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; }
+  .p-ico { width: 48px; height: 48px; display: grid; place-items: center; font-size: 1.7rem; border-radius: calc(var(--radius) * .7); background: var(--surface-2); overflow: hidden; }
+  .p-ico img { width: 100%; height: 100%; object-fit: cover; }
+  .p-name { font-weight: 700; font-size: 1.05rem; line-height: 1.25; }
+  .p-sub { color: var(--muted); font-size: .88rem; min-height: 1.2em; }
+  .p-price { font-family: var(--font-display); font-weight: 800; font-size: calc(1.6rem * var(--title-scale)); color: var(--accent); margin-top: .25rem; }
+  .p-price small { font-family: var(--font-body); font-size: .75rem; color: var(--muted); font-weight: 500; }
+  .p-meta { display: flex; justify-content: space-between; gap: .5rem; font-size: .84rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .p-meta .pos { color: #3FAE6A; font-weight: 600; } .p-meta .neg { color: #E5534B; font-weight: 600; }
+  .p-stock { display: flex; align-items: center; gap: .45rem; margin-top: .35rem; padding-top: .6rem; border-top: 1px dashed var(--line); font-size: .88rem; }
+  .p-stock i { color: var(--muted); }
+  .p-stock b { margin-left: auto; font-size: .78rem; padding: .1rem .55rem; border-radius: 999px; }
+  .p-stock.low b { background: rgba(232,153,28,.18); color: #E8991C; }
+  .p-stock.out b { background: rgba(229,83,75,.16); color: #E5534B; }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+
+  /* Choix de l'affichage : cartes ou liste */
+  .view-toggle { display: inline-flex; padding: 3px; gap: 3px; background: var(--surface-2); border-radius: 999px; }
+  .view-toggle button { border: 0; background: none; width: 38px; height: 34px; border-radius: 999px; color: var(--muted); font-size: 1.05rem; display: grid; place-items: center; transition: all .2s; cursor: pointer; }
+  .view-toggle button:hover { color: var(--ink); }
+  .view-toggle button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .p-id { display: flex; flex-direction: column; gap: .1rem; }
+  .p-head { display: none; }
+
+  [data-pview="list"] .pgrid { display: flex; flex-direction: column; gap: .5rem; }
+  [data-pview="list"] .p-head { display: flex; align-items: center; gap: 1rem; padding: 0 calc(1rem + 1px) .15rem; color: var(--muted); font-size: .78rem; font-weight: 600; }
+  .p-head .h-ico { width: 40px; flex: none; } .p-head .h-id { flex: 1; min-width: 0; }
+  .p-head .h-chip { width: 120px; flex: none; text-align: center; } .p-head .h-price { width: 120px; flex: none; text-align: right; }
+  .p-head .h-meta, .p-head .h-stock { width: 170px; flex: none; }
+  [data-pview="list"] .pcard { flex-direction: row; align-items: center; gap: 1rem; padding: .7rem 1rem; box-shadow: none; }
+  [data-pview="list"] .pcard:hover { transform: none; }
+  [data-pview="list"] .p-top { display: contents; }
+  [data-pview="list"] .p-ico { order: 1; width: 40px; height: 40px; font-size: 1.3rem; flex: none; }
+  [data-pview="list"] .p-id { order: 2; flex: 1; min-width: 0; }
+  [data-pview="list"] .p-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-pview="list"] .p-sub { min-height: 0; }
+  [data-pview="list"] .p-top .chip { order: 3; width: 120px; flex: none; justify-content: center; }
+  [data-pview="list"] .p-price { order: 4; width: 120px; flex: none; margin: 0; text-align: right; font-size: 1.15rem; }
+  [data-pview="list"] .p-meta { order: 5; width: 170px; flex: none; flex-direction: column; gap: 0; }
+  [data-pview="list"] .p-stock { order: 6; width: 170px; flex: none; margin: 0; padding: 0; border: 0; }
+  @media (max-width: 767.98px) {
+    [data-pview="list"] .p-head { display: none; }
+    [data-pview="list"] .pcard { flex-wrap: wrap; gap: .4rem .75rem; }
+    [data-pview="list"] .p-top .chip { display: none; }
+    [data-pview="list"] .p-price { width: auto; margin-left: auto; }
+    [data-pview="list"] .p-meta, [data-pview="list"] .p-stock { order: 7; flex: 1 1 45%; width: auto; }
+    [data-pview="list"] .p-meta { flex-direction: row; justify-content: space-between; }
+  }
+
+  .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.75rem; color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+</style>
+<script>
+  /* Applique le mode d'affichage mémorisé avant le premier affichage */
+  try { document.documentElement.setAttribute('data-pview', localStorage.getItem('bar:pview') || 'grid'); } catch (e) {}
+</script>
+{% endblock %}
+
+{% block page_actions %}
+  {% if can_add %}<a href="{% url 'catalog:product_add' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter un produit</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  <div class="search-box">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Rechercher un produit ou une marque" aria-label="Rechercher">
+  </div>
+  <select name="category" class="form-select" aria-label="Catégorie" onchange="this.form.submit()">
+    <option value="">Toutes les catégories</option>
+    {% for c in categories %}<option value="{{ c.pk }}" {% if category == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+  </select>
+  {% if q or category or state != "actifs" %}<a href="?" class="btn btn-link text-decoration-none">Réinitialiser</a>{% endif %}
+  <span class="count">{{ page.paginator.count }} produit{{ page.paginator.count|pluralize }}</span>
+  <div class="view-toggle" role="group" aria-label="Mode d'affichage">
+    <button type="button" data-view="grid" aria-pressed="true" title="Afficher en cartes" aria-label="Cartes"><i class="bi bi-grid-3x3-gap"></i></button>
+    <button type="button" data-view="list" aria-pressed="false" title="Afficher en liste" aria-label="Liste"><i class="bi bi-list-ul"></i></button>
+  </div>
+</form>
+
+<div class="pills">
+  <a href="?state=actifs&q={{ q|urlencode }}&category={{ category|urlencode }}" class="{% if state == 'actifs' %}on{% endif %}">Vendus</a>
+  {% if can_stock %}<a href="?state=bas&q={{ q|urlencode }}&category={{ category|urlencode }}" class="{% if state == 'bas' %}on{% endif %}">Stock bas</a>{% endif %}
+  <a href="?state=inactifs&q={{ q|urlencode }}&category={{ category|urlencode }}" class="{% if state == 'inactifs' %}on{% endif %}">Désactivés</a>
+  <a href="?state=tous&q={{ q|urlencode }}&category={{ category|urlencode }}" class="{% if state == 'tous' %}on{% endif %}">Tous</a>
+</div>
+
+{% if page.object_list %}
+<div class="pgrid">
+  <div class="p-head" aria-hidden="true">
+    <span class="h-ico"></span><span class="h-id">Produit</span><span class="h-chip">Catégorie</span><span class="h-price">Prix</span>
+    {% if can_costs %}<span class="h-meta">Achat et marge</span>{% endif %}
+    {% if can_stock %}<span class="h-stock">Stock</span>{% endif %}
+  </div>
+  {% for pb in page.object_list %}
+  {% with k=pb.product.category.kind %}
+  <a href="{% url 'catalog:product_detail' pb.pk %}" class="pcard {% if not pb.is_active %}off{% endif %}">
+    <div class="p-top">
+      <div class="p-ico">
+        {% if pb.product.image %}<img src="{{ pb.product.image.url }}" alt="">
+        {% elif k == "BEER" %}🍺{% elif k == "WINE" %}🍷{% elif k == "SPIRIT" %}🥃{% elif k == "JUICE" %}🧃{% elif k == "SOFT" %}🥤{% elif k == "WATER" %}💧{% else %}🍹{% endif %}
+      </div>
+      <span class="chip {% if k == 'BEER' %}chip-biere{% elif k == 'JUICE' %}chip-jus{% elif k == 'SOFT' or k == 'WATER' %}chip-soft{% elif k == 'WINE' or k == 'SPIRIT' %}chip-alcool{% else %}chip-neutral{% endif %}">{{ pb.product.category.name }}</span>
+    </div>
+
+    <div class="p-id">
+      <div class="p-name">{{ pb.product.name }}</div>
+      <div class="p-sub">{% if pb.product.brand %}{{ pb.product.brand }}{% endif %}{% if pb.product.volume_cl %}{% if pb.product.brand %}, {% endif %}{{ pb.product.volume_cl }} cl{% endif %}{% if not pb.is_active %}{% if pb.product.brand or pb.product.volume_cl %}, {% endif %}désactivé{% endif %}</div>
+    </div>
+
+    <div class="p-price">{{ pb.sale_price_fcfa|floatformat:"0g" }} <small>FCFA</small></div>
+
+    {% if can_costs %}
+    <div class="p-meta">
+      <span>Achat {{ pb.purchase_price_fcfa|floatformat:"0g" }}</span>
+      <span class="{% if pb.margin < 0 %}neg{% else %}pos{% endif %}">Marge {{ pb.margin|floatformat:"0g" }}{% if pb.sale_price_fcfa %} ({% widthratio pb.margin pb.sale_price_fcfa 100 %} %){% endif %}</span>
+    </div>
+    {% endif %}
+
+    {% if can_stock %}
+    <div class="p-stock {% if pb.stock <= 0 %}out{% elif pb.stock <= pb.low_stock_threshold %}low{% endif %}">
+      <i class="bi bi-box-seam"></i> {{ pb.stock|floatformat:"-1g" }} en stock
+      {% if pb.stock <= 0 %}<b>Rupture</b>{% elif pb.stock <= pb.low_stock_threshold %}<b>Stock bas</b>{% endif %}
+    </div>
+    {% endif %}
+  </a>
+  {% endwith %}
+  {% endfor %}
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🍺</div>
+  {% if q or category or state != "actifs" %}
+    <h2 class="h5">Aucun produit ne correspond</h2>
+    <p class="text-secondary">Essayez un autre mot, une autre catégorie ou un autre filtre.</p>
+    <a href="?" class="btn btn-outline-secondary rounded-pill">Voir tous les produits vendus</a>
+  {% else %}
+    <h2 class="h5">Votre catalogue est vide</h2>
+    <p class="text-secondary">Choisissez vos boissons dans le catalogue commun, puis fixez vos propres prix.</p>
+    {% if can_add %}<a href="{% url 'catalog:product_add' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter mon premier produit</a>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var KEY = 'bar:pview', root = document.documentElement, btns = document.querySelectorAll('.view-toggle button');
+    function set(view) {
+      root.setAttribute('data-pview', view);
+      btns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === view)); });
+      try { localStorage.setItem(KEY, view); } catch (e) {}
+    }
+    btns.forEach(function (b) { b.addEventListener('click', function () { set(b.dataset.view); }); });
+    set(root.getAttribute('data-pview') || 'grid');
+  })();
+</script>
+{% endblock %}

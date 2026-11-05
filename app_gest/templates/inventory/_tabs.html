@@ -1,0 +1,9 @@
+{# Sections du stock. Usage : {% include "inventory/_tabs.html" with active="stock" %} #}
+<nav class="itabs" aria-label="Sections du stock">
+  <a href="{% url 'inventory:stock_list' %}" class="{% if active == 'stock' %}on{% endif %}"><i class="bi bi-box-seam"></i> Stock</a>
+  <a href="{% url 'inventory:movement_list' %}" class="{% if active == 'movements' %}on{% endif %}"><i class="bi bi-arrow-left-right"></i> Mouvements</a>
+  <a href="{% url 'inventory:count_list' %}" class="{% if active == 'counts' %}on{% endif %}"><i class="bi bi-clipboard-check"></i> Inventaires</a>
+  <a href="{% url 'inventory:loss_list' %}" class="{% if active == 'losses' %}on{% endif %}"><i class="bi bi-cup-straw"></i> Pertes</a>
+  <a href="{% url 'inventory:report' %}" class="{% if active == 'report' %}on{% endif %}"><i class="bi bi-bar-chart-line"></i> Rapport</a>
+  <a href="{% url 'inventory:closing_list' %}" class="{% if active == 'closings' %}on{% endif %}"><i class="bi bi-lock"></i> Clôtures</a>
+</nav>

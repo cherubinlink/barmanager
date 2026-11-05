@@ -1,0 +1,67 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Rapport de stock{% endblock %}
+{% block page_title %}Rapport de stock{% endblock %}
+{% block page_sub %}{% if start == end %}{{ start|date:"l j F Y" }}{% else %}Du {{ start|date:"j F Y" }} au {{ end|date:"j F Y" }}{% endif %} : stock d'ouverture, entrées, ventes, pertes et stock de clôture.{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}{% endblock %}
+
+{% block page_actions %}
+  <button type="button" class="btn btn-outline-secondary rounded-pill" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer</button>
+{% endblock %}
+
+{% block content %}
+{% include "inventory/_tabs.html" with active="report" %}
+
+<form method="get" class="filters">
+  <select name="period" class="form-select" aria-label="Période" onchange="this.form.submit()">
+    {% for p in periods %}<option value="{{ p.0 }}" {% if period == p.0 %}selected{% endif %}>{{ p.1 }}</option>{% endfor %}
+  </select>
+  <label class="d-flex align-items-center gap-2 text-secondary small">Date de référence <input type="date" name="date" value="{{ request.GET.date }}" onchange="this.form.submit()"></label>
+  {% if request.GET.period or request.GET.date %}<a href="?" class="btn btn-link text-decoration-none">Aujourd'hui</a>{% endif %}
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Achats reçus</span>
+    <span class="value">{{ totals.purchase_value|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">valeur des entrées de la période</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Coût des ventes</span>
+    <span class="value">{{ totals.cogs|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">au prix d'achat</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Valeur des pertes</span>
+    <span class="value {% if totals.loss_value > 0 %}neg{% endif %}" {% if totals.loss_value > 0 %}style="color:#E5534B"{% endif %}>{{ totals.loss_value|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">casse, périmé, offert</span>
+  </div></div>
+</div>
+
+<div class="card-bar flush">
+  <div class="table-wrap">
+    <table class="t">
+      <thead>
+        <tr><th>Produit</th><th>Ouverture</th><th>Entrées</th><th>Ventes</th><th>Pertes</th><th>Ajustements</th><th>Clôture</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a href="{% url 'inventory:stock_product' r.product_bar.pk %}"><span class="nm">{{ r.product_bar.product }}</span><span class="sub">{{ r.product_bar.product.category.name }}</span></a></td>
+          <td class="muted">{{ r.opening|floatformat:"-3g" }}</td>
+          <td class="{% if r.purchased %}pos{% else %}muted{% endif %}">{% if r.purchased %}+{% endif %}{{ r.purchased|floatformat:"-3g" }}</td>
+          <td>{{ r.sold|floatformat:"-3g" }}</td>
+          <td class="{% if r.lost %}neg{% else %}muted{% endif %}">{{ r.lost|floatformat:"-3g" }}</td>
+          <td class="{% if r.adjust > 0 %}pos{% elif r.adjust < 0 %}neg{% else %}muted{% endif %}">{% if r.adjust > 0 %}+{% endif %}{{ r.adjust|floatformat:"-3g" }}</td>
+          <td><b class="{% if r.closing <= 0 %}neg{% endif %}">{{ r.closing|floatformat:"-3g" }}</b></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="empty-row">Aucun mouvement de stock sur cette période.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-secondary small mt-3">Clôture = ouverture + entrées − ventes − pertes ± ajustements. Les quantités sont en unités de base (bouteilles, canettes).</p>
+{% endblock %}

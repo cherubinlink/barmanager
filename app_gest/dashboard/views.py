@@ -40,7 +40,7 @@ PERM_WIDGETS = [
 ]
 
 ROLE_INTRO = {
-    "gerant": ("Vue d'ensemble de votre bar", "Ventes du jour, stock, crédits et décisions à prendre."),
+    "gerant": ("Vue d'ensemble ", "Ventes du jour, stock, crédits et décisions à prendre."),
     "caissier": ("Caisse", "Encaissements du jour et factures en attente."),
     "vendeuse": ("Service", "Vos commandes en cours et les commandes QR à valider."),
     "magasinier": ("Stock", "Niveaux de stock, commandes à réceptionner et pertes."),
@@ -59,7 +59,11 @@ QUICK_ACTIONS = [
     ("Inventaire", "📋", "inventory:count_list", Perm.STOCK_ADJUST),
     ("Crédits", "💳", "credits:credit_list", Perm.CREDIT_MANAGE),
     ("Produits et prix", "🍺", "catalog:product_list", Perm.PRICE_EDIT),
-    ("Équipe et rôles", "👥", "accounts:team", Perm.USER_MANAGE),
+    ("Équipe", "👥", "accounts:team", Perm.USER_MANAGE),
+    ("Rôles", "🛡️", "accounts:roles", Perm.USER_MANAGE),
+    ("Réglages du bar", "⚙️", "tenants:settings", Perm.BAR_SETTINGS),
+    ("QR code du bar", "🔳", "tenants:qr", Perm.BAR_SETTINGS),
+    ("Abonnement", "🔑", "tenants:subscription", Perm.SUBSCRIPTION_MANAGE),
     ("Messagerie", "💬", "chat:inbox", Perm.CHAT_USE),
     ("Statistiques", "📈", "analytics:overview", Perm.REPORT_VIEW),
 ]
@@ -85,6 +89,7 @@ def homes(request):
 
     role_key = "gerant" if membership.is_owner else membership.role.code
     title, intro = ROLE_INTRO.get(role_key, ROLE_INTRO["default"])
+    title = bar.name
     actions = [{"label": label, "icon": icon, "url": _url(name)}
                for label, icon, name, perm in QUICK_ACTIONS if membership.has_perm(perm)]
 

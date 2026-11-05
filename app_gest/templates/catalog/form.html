@@ -1,0 +1,119 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_sub %}{{ subtitle }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-shell { max-width: 760px; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .field { grid-column: span 1; }
+  .field.full { grid-column: span 2; }
+  .field label { font-weight: 600; margin-bottom: .35rem; display: block; }
+  .field .help { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .field .err { color: #E5534B; font-size: .85rem; margin-top: .3rem; }
+  .field .form-control, .field .form-select { padding: .7rem .9rem; }
+  .field .input-group-text { background: var(--surface-2); border-color: var(--line); color: var(--muted); font-weight: 600; font-size: .85rem; }
+  .field.switch { grid-column: span 2; padding: 1rem 1.15rem; background: var(--surface-2); border-radius: var(--radius); }
+  .field.switch .form-check { display: flex; align-items: center; gap: .75rem; margin: 0; padding: 0; min-height: 0; }
+  .field.switch .form-check-input { float: none; margin: 0; width: 2.6em; height: 1.4em; cursor: pointer; }
+  .field.switch .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+  .field.switch label { margin: 0; cursor: pointer; }
+  .group-title { grid-column: span 2; font-family: var(--font-display); font-size: calc(1.05rem * var(--title-scale)); font-weight: 700; margin: .75rem 0 -.25rem; padding-top: 1rem; border-top: 1px dashed var(--line); }
+  .group-title:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+
+  .margin-box { grid-column: span 2; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .25rem 1rem; padding: 1rem 1.15rem; border-radius: var(--radius); }
+  .margin-box.ok { background: var(--accent-soft); }
+  .margin-box.loss { background: rgba(229,83,75,.14); }
+  .margin-box b { font-family: var(--font-display); font-size: calc(1.25rem * var(--title-scale)); }
+  .margin-box.ok b { color: var(--accent); } .margin-box.loss b { color: #E5534B; }
+  .margin-box .mb-note { color: var(--muted); font-size: .88rem; }
+  @media (max-width: 575.98px) { .field { grid-column: span 2; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if back_args %}{% url back_url back_args.0 as back %}{% else %}{% url back_url as back %}{% endif %}
+<div class="form-shell">
+  <div class="card-bar">
+    <form method="post" class="cat-form" novalidate>
+      {% csrf_token %}
+      {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger" role="alert">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+      {% endif %}
+
+      <div class="fields">
+        {% for field in form.visible_fields %}
+          {% if field.name == "name" and form.category %}<div class="group-title">Le produit</div>{% endif %}
+          {% if field.name == "sale_price_fcfa" %}<div class="group-title">Prix et stock</div>{% endif %}
+
+          {% if field.field.widget.input_type == "checkbox" %}
+            <div class="field switch {% if field.errors %}has-error{% endif %}">
+              <div class="form-check form-switch">{{ field }}<label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+              {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+              {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+            </div>
+          {% else %}
+            <div class="field {% if field.name == 'name' %}full{% endif %} {% if field.errors %}has-error{% endif %}">
+              <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="text-secondary fw-normal">(facultatif)</span>{% endif %}</label>
+              {{ field }}
+              {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+              {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        {# Aperçu de la marge, affiché dès que le prix de vente est saisi #}
+        <div class="margin-box ok" id="marginBox" hidden>
+          <span>Marge par unité <b class="mb-val"></b></span>
+          <span class="mb-note"></span>
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <button type="submit" class="btn btn-primary btn-lg">{{ submit|default:"Enregistrer" }}</button>
+        {% if back %}<a href="{{ back }}" class="btn btn-outline-secondary btn-lg rounded-pill">Annuler</a>{% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.querySelector('.cat-form');
+    if (!form) return;
+
+    form.querySelectorAll('input, select, textarea').forEach(function (el) {
+      if (el.type === 'hidden') return;
+      if (el.type === 'checkbox') { el.classList.add('form-check-input'); return; }
+      el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+      if (el.closest('.has-error')) el.classList.add('is-invalid');
+      // Suffixe FCFA sur les champs de prix
+      if (el.name && /_fcfa$/.test(el.name)) {
+        var g = document.createElement('div'); g.className = 'input-group';
+        el.parentNode.insertBefore(g, el); g.appendChild(el);
+        var s = document.createElement('span'); s.className = 'input-group-text'; s.textContent = 'FCFA'; g.appendChild(s);
+      }
+    });
+
+    // Aperçu de la marge
+    var sale = form.querySelector('[name=sale_price_fcfa]'), buy = form.querySelector('[name=purchase_price_fcfa]'), box = document.getElementById('marginBox');
+    if (sale && buy && box) {
+      var update = function () {
+        var s = parseInt(sale.value, 10), b = parseInt(buy.value, 10) || 0;
+        if (!s) { box.hidden = true; return; }
+        var m = s - b, pct = Math.round(m * 100 / s);
+        box.hidden = false;
+        box.className = 'margin-box ' + (m < 0 ? 'loss' : 'ok');
+        box.querySelector('.mb-val').textContent = m.toLocaleString('fr-FR') + ' FCFA (' + pct + ' %)';
+        box.querySelector('.mb-note').textContent = m < 0 ? 'Vous vendez à perte.' : (b ? '' : "Prix d'achat non renseigné.");
+      };
+      sale.addEventListener('input', update); buy.addEventListener('input', update); update();
+    }
+  })();
+</script>
+{% endblock %}

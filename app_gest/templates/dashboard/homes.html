@@ -1,5 +1,4 @@
 {% extends "navigateur/base.html" %}
-{% load l10n %}
 
 {% block title %}{{ title }}{% endblock %}
 {% block page_title %}{{ title }}{% endblock %}
@@ -16,18 +15,6 @@
   a.qa:hover { transform: translateY(-3px); border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
   .qa.disabled { opacity: .45; cursor: not-allowed; }
 
-  /* Blocs */
-  .blk-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: .9rem; }
-  .blk-title h2 { font-size: calc(1.1rem * var(--title-scale)); font-weight: 700; margin: 0; }
-  .stat .value small { font-size: .5em; color: var(--muted); font-weight: 600; }
-  .rows { list-style: none; margin: 0; padding: 0; }
-  .rows li { display: flex; justify-content: space-between; gap: 1rem; padding: .6rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
-  .rows li:last-child { border-bottom: 0; }
-  .rows .sub { display: block; color: var(--muted); font-size: .82rem; }
-  .rows b { white-space: nowrap; }
-  .empty { color: var(--muted); margin: 0; padding: .5rem 0; }
-  .alert-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #E5534B; margin-right: .4rem; }
-
   /* Abonnement */
   .sub-alert { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; border-radius: var(--radius); border: 1px solid; }
   .sub-alert i { font-size: 1.4rem; }
@@ -36,11 +23,37 @@
   .sub-alert.lvl-danger { background: rgba(229,83,75,.14); border-color: #E5534B; }
   .stat.lvl-ok .value { color: #3FAE6A; } .stat.lvl-warning .value { color: #E8991C; } .stat.lvl-danger .value { color: #E5534B; }
 
+  /* Blocs */
+  .blk-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: .9rem; }
+  .blk-title h2 { font-size: calc(1.1rem * var(--title-scale)); font-weight: 700; margin: 0; }
+  .stat .value small { font-size: .5em; color: var(--muted); font-weight: 600; }
+  .stat .value.neg { color: #E5534B; }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .6rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .rows li:last-child { border-bottom: 0; }
+  .rows .sub { display: block; color: var(--muted); font-size: .82rem; }
+  .rows b { white-space: nowrap; }
+  .rows a { color: inherit; text-decoration: none; } .rows a:hover { color: var(--accent); }
+  .empty { color: var(--muted); margin: 0; padding: .5rem 0; }
+  .alert-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #E5534B; margin-right: .4rem; }
+  .total-line { display: flex; justify-content: space-between; align-items: baseline; margin-top: .75rem; padding-top: .75rem; border-top: 2px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .total-line b { font-family: var(--font-display); font-size: 1.15rem; }
+
   /* Ventes de la semaine */
   .wk { display: flex; align-items: flex-end; gap: .6rem; height: 170px; padding-top: .5rem; }
   .wk-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: .4rem; }
-  .wk-bar { width: 100%; min-height: 4px; height: var(--h, 4%); background: var(--accent); border-radius: 8px 8px 3px 3px; transition: height .8s var(--ease); }
-  .wk-lbl { font-size: .78rem; color: var(--muted); }
+  .wk-bar { width: 100%; min-height: 4px; height: var(--h, 4%); background: var(--accent); opacity: .55; border-radius: 8px 8px 3px 3px; animation: grow .8s var(--ease) both; }
+  .wk-col.today .wk-bar { opacity: 1; }
+  .wk-lbl { font-size: .78rem; color: var(--muted); text-transform: capitalize; }
+  @keyframes grow { from { height: 4%; } }
+
+  /* Menu latéral : seule la liste des liens défile */
+.sidebar { height: 100vh; height: 100dvh; }
+.sidebar > .brand, .sidebar > .bar-card, .sidebar > .nav-collapse, .sidebar > form { flex: none; }
+.nav-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.nav-list::-webkit-scrollbar { width: 6px; }
+.nav-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+@media (max-height: 720px) { .sidebar { gap: .75rem; padding-block: .85rem; } .nav-item { padding-block: .55rem; } }
 </style>
 {% endblock %}
 
@@ -92,6 +105,7 @@
 
 {# ===== Chiffres clés ===== #}
 <div class="row g-3 mb-4">
+
   {% if subscription_info and membership.is_owner %}
   <div class="col-6 col-xl-3"><div class="card-bar stat lvl-{{ subscription_info.level }}">
     <span class="label">Abonnement</span>
@@ -105,213 +119,238 @@
   </div></div>
   {% endif %}
 
+  {# sales_today : {tickets, revenue, collected, balance, margin} #}
   {% if data.sales_today %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Ventes du jour</span>
-    <span class="value">{{ data.sales_today.total|floatformat:"0g" }} <small>FCFA</small></span>
-    <span class="label">{{ data.sales_today.count|default:0 }} ticket{{ data.sales_today.count|default:0|pluralize }}</span>
+    <span class="value">{{ data.sales_today.revenue|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.sales_today.tickets }} ticket{{ data.sales_today.tickets|pluralize }}, encaissé {{ data.sales_today.collected|floatformat:"0g" }}</span>
+    {% if data.sales_today.balance > 0 %}<span class="label">Reste à encaisser : {{ data.sales_today.balance|floatformat:"0g" }} FCFA</span>{% endif %}
+    {% if membership.is_owner %}<span class="label">Marge : {{ data.sales_today.margin|floatformat:"0g" }} FCFA</span>{% endif %}
   </div></div>
   {% endif %}
 
+  {# my_sales : {tickets, revenue} #}
   {% if data.my_sales %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Mes ventes</span>
-    <span class="value">{{ data.my_sales.total|floatformat:"0g" }} <small>FCFA</small></span>
-    <span class="label">{{ data.my_sales.count|default:0 }} ticket{{ data.my_sales.count|default:0|pluralize }}</span>
+    <span class="value">{{ data.my_sales.revenue|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.my_sales.tickets }} ticket{{ data.my_sales.tickets|pluralize }}</span>
   </div></div>
   {% endif %}
 
-  {% if data.open_tickets %}
+  {# open_tickets : liste de tickets (10 au maximum) #}
+  {% if "open_tickets" in data %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Tickets ouverts</span>
-    <span class="value">{{ data.open_tickets.count|default:0 }}</span>
-    <span class="label">En attente de paiement</span>
+    <span class="value">{{ data.open_tickets|length }}{% if data.open_tickets|length >= 10 %}+{% endif %}</span>
+    <span class="label">En cours ou en attente de paiement</span>
   </div></div>
   {% endif %}
 
-  {% if data.qr_pending %}
+  {# qr_pending : liste de tickets (10 au maximum) #}
+  {% if "qr_pending" in data %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Commandes QR à valider</span>
-    <span class="value">{{ data.qr_pending.count|default:0 }}</span>
-    <span class="label">{% if data.qr_pending.count %}<span class="alert-dot"></span>À traiter{% else %}Rien en attente{% endif %}</span>
+    <span class="value">{{ data.qr_pending|length }}{% if data.qr_pending|length >= 10 %}+{% endif %}</span>
+    <span class="label">{% if data.qr_pending %}<span class="alert-dot"></span>À traiter{% else %}Rien en attente{% endif %}</span>
   </div></div>
   {% endif %}
 
-  {% if data.stock_value %}
+  {# stock_value : un entier #}
+  {% if "stock_value" in data %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Valeur du stock</span>
-    <span class="value">{{ data.stock_value.total|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="value">{{ data.stock_value|floatformat:"0g" }} <small>FCFA</small></span>
   </div></div>
   {% endif %}
 
+  {# receivables : {balance, count, overdue_count, overdue} ou None si l'app des crédits est absente #}
   {% if data.receivables %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Crédits clients à recevoir</span>
-    <span class="value">{{ data.receivables.total|floatformat:"0g" }} <small>FCFA</small></span>
-    <span class="label">{{ data.receivables.count|default:0 }} dossier{{ data.receivables.count|default:0|pluralize }}</span>
+    <span class="value">{{ data.receivables.balance|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.receivables.count }} dossier{{ data.receivables.count|pluralize }}{% if data.receivables.overdue_count %}, <span class="text-danger">{{ data.receivables.overdue_count }} en retard</span>{% endif %}</span>
   </div></div>
   {% endif %}
 
+  {# payables : {balance, count, due_soon} #}
   {% if data.payables %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Dettes fournisseurs</span>
-    <span class="value">{{ data.payables.total|floatformat:"0g" }} <small>FCFA</small></span>
-    <span class="label">{{ data.payables.count|default:0 }} à payer</span>
+    <span class="value {% if data.payables.balance > 0 %}neg{% endif %}">{{ data.payables.balance|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ data.payables.count }} commande{{ data.payables.count|pluralize }} à payer{% if data.payables.due_soon %}, {{ data.payables.due_soon }} sous 7 jours{% endif %}</span>
   </div></div>
   {% endif %}
 
+  {# pending_losses : {count, items} #}
   {% if data.pending_losses %}
   <div class="col-6 col-xl-3"><div class="card-bar stat">
     <span class="label">Pertes à valider</span>
-    <span class="value">{{ data.pending_losses.count|default:0 }}</span>
+    <span class="value">{{ data.pending_losses.count }}</span>
     <span class="label">Casse déclarée</span>
+  </div></div>
+  {% endif %}
+
+  {# team : {count} #}
+  {% if data.team %}
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Équipe</span>
+    <span class="value">{{ data.team.count }} <small>membre{{ data.team.count|pluralize }}</small></span>
+    <span class="label"><a href="{% url 'accounts:team' %}" class="text-decoration-none">Gérer l'équipe</a></span>
   </div></div>
   {% endif %}
 </div>
 
 <div class="row g-4">
 
-  {# ===== Ventes de la semaine ===== #}
-  {% if data.sales_week %}
+  {# ===== Ventes de la semaine : liste de 7 jours {date, revenue, pct} ===== #}
+  {% if "sales_week" in data %}
   <div class="col-lg-8"><div class="card-bar h-100">
     <div class="blk-title"><h2>Ventes de la semaine</h2></div>
-    {% localize off %}
-    <div class="wk" id="weekChart">
-      {% for d in data.sales_week.rows %}
-      <div class="wk-col" title="{{ d.total|floatformat:'0g' }} FCFA">
-        <div class="wk-bar" data-v="{{ d.total|default:0 }}"></div>
-        <span class="wk-lbl">{{ d.label }}</span>
+    <div class="wk">
+      {% for d in data.sales_week %}
+      <div class="wk-col {% if forloop.last %}today{% endif %}" title="{{ d.date|date:'l j F' }} : {{ d.revenue|floatformat:'0g' }} FCFA">
+        <div class="wk-bar" style="--h: {{ d.pct }}%"></div>
+        <span class="wk-lbl">{{ d.date|date:"D" }}</span>
       </div>
-      {% empty %}<p class="empty">Aucune vente cette semaine.</p>{% endfor %}
+      {% endfor %}
     </div>
-    {% endlocalize %}
   </div></div>
   {% endif %}
 
-  {# ===== Paiements par mode ===== #}
+  {# ===== Encaissé par mode : {items: [{label, total}], total} ===== #}
   {% if data.payments_by_method %}
   <div class="col-lg-4"><div class="card-bar h-100">
     <div class="blk-title"><h2>Encaissé par mode</h2></div>
     <ul class="rows">
-      {% for p in data.payments_by_method.rows %}
-        <li><span>{{ p.method }}</span><b>{{ p.total|floatformat:"0g" }} FCFA</b></li>
+      {% for p in data.payments_by_method.items %}
+        <li><span>{{ p.label }}</span><b>{{ p.total|floatformat:"0g" }} FCFA</b></li>
       {% empty %}<li class="empty">Aucun encaissement aujourd'hui.</li>{% endfor %}
     </ul>
+    {% if data.payments_by_method.items %}<div class="total-line"><span>Total encaissé</span><b>{{ data.payments_by_method.total|floatformat:"0g" }} FCFA</b></div>{% endif %}
   </div></div>
   {% endif %}
 
-  {# ===== Produits les plus vendus ===== #}
-  {% if data.top_products %}
+  {# ===== Produits les plus vendus : liste {name, volume, qty, revenue} ===== #}
+  {% if "top_products" in data %}
   <div class="col-lg-6"><div class="card-bar h-100">
-    <div class="blk-title"><h2>Produits les plus vendus</h2></div>
+    <div class="blk-title"><h2>Produits les plus vendus (7 jours)</h2></div>
     <ul class="rows">
-      {% for p in data.top_products.rows %}
-        <li><span>{{ p.name }}<span class="sub">{{ p.qty }} vendu{{ p.qty|pluralize }}</span></span><b>{{ p.total|floatformat:"0g" }} FCFA</b></li>
+      {% for p in data.top_products %}
+        <li><span>{{ p.name }}{% if p.volume %} {{ p.volume }} cl{% endif %}<span class="sub">{{ p.qty|floatformat:"-1g" }} vendu{{ p.qty|pluralize }}</span></span><b>{{ p.revenue|floatformat:"0g" }} FCFA</b></li>
       {% empty %}<li class="empty">Pas encore de ventes.</li>{% endfor %}
     </ul>
   </div></div>
   {% endif %}
 
-  {# ===== Stock bas ===== #}
-  {% if data.low_stock %}
+  {# ===== Stock bas : liste de ProductBar annotés (stock) ===== #}
+  {% if "low_stock" in data %}
   <div class="col-lg-6"><div class="card-bar h-100">
     <div class="blk-title"><h2>Stock bas</h2></div>
     <ul class="rows">
-      {% for p in data.low_stock.rows %}
-        <li><span><span class="alert-dot"></span>{{ p.name }}</span><b>{{ p.stock }} restant{{ p.stock|pluralize }}</b></li>
+      {% for p in data.low_stock %}
+        <li>
+          <span><span class="alert-dot"></span><a href="{% url 'catalog:product_detail' p.pk %}">{{ p.product }}</a></span>
+          <b>{% if p.stock <= 0 %}Rupture{% else %}{{ p.stock|floatformat:"-1g" }} restant{{ p.stock|pluralize }}{% endif %}</b>
+        </li>
       {% empty %}<li class="empty">Aucune alerte : le stock est suffisant.</li>{% endfor %}
     </ul>
   </div></div>
   {% endif %}
 
-  {# ===== Tickets ouverts ===== #}
-  {% if data.open_tickets %}
+  {# ===== Commandes en cours : liste de tickets ===== #}
+  {% if "open_tickets" in data %}
   <div class="col-lg-6"><div class="card-bar h-100">
     <div class="blk-title"><h2>Commandes en cours</h2></div>
     <ul class="rows">
-      {% for t in data.open_tickets.rows %}
-        <li><span>{{ t.name }}</span><b>{{ t.total|floatformat:"0g" }} FCFA</b></li>
+      {% for t in data.open_tickets %}
+        {% url 'sales:ticket_detail' t.pk as t_url %}
+        {% firstof t.display_name t.name as t_name %}
+        <li>
+          <span>{% if t_url %}<a href="{{ t_url }}">{{ t_name|default:t }}</a>{% else %}{{ t_name|default:t }}{% endif %}<span class="sub">Ouvert à {{ t.created_at|time:"H:i" }}, {{ t.get_status_display }}</span></span>
+          <b>{{ t.total_fcfa|floatformat:"0g" }} FCFA</b>
+        </li>
       {% empty %}<li class="empty">Aucun ticket ouvert.</li>{% endfor %}
     </ul>
   </div></div>
   {% endif %}
 
-  {# ===== Commandes QR ===== #}
-  {% if data.qr_pending %}
+  {# ===== Commandes QR en attente : liste de tickets ===== #}
+  {% if "qr_pending" in data %}
   <div class="col-lg-6"><div class="card-bar h-100">
     <div class="blk-title"><h2>Commandes QR en attente</h2></div>
     <ul class="rows">
-      {% for t in data.qr_pending.rows %}
-        <li><span>{{ t.name }}</span><b>{{ t.total|floatformat:"0g" }} FCFA</b></li>
+      {% for t in data.qr_pending %}
+        {% url 'sales:ticket_detail' t.pk as t_url %}
+        {% firstof t.display_name t.name as t_name %}
+        <li>
+          <span>{% if t_url %}<a href="{{ t_url }}">{{ t_name|default:t }}</a>{% else %}{{ t_name|default:t }}{% endif %}<span class="sub">Reçue à {{ t.created_at|time:"H:i" }}</span></span>
+          <b>{{ t.total_fcfa|floatformat:"0g" }} FCFA</b>
+        </li>
       {% empty %}<li class="empty">Aucune commande QR à valider.</li>{% endfor %}
     </ul>
   </div></div>
   {% endif %}
 
-  {# ===== Commandes fournisseurs à réceptionner ===== #}
-  {% if data.purchase_to_receive %}
+  {# ===== Crédits en retard : liste de crédits (receivables.overdue) ===== #}
+  {% if data.receivables.overdue %}
+  <div class="col-lg-6"><div class="card-bar h-100">
+    <div class="blk-title"><h2>Crédits en retard</h2></div>
+    <ul class="rows">
+      {% for c in data.receivables.overdue %}
+        <li><span><span class="alert-dot"></span>{% if c.customer %}{{ c.customer }}{% else %}Client{% endif %}<span class="sub">Échéance le {{ c.due_date|date:"j F Y" }}</span></span></li>
+      {% endfor %}
+    </ul>
+    {% if data.receivables.overdue_count > 5 %}<p class="text-secondary small mt-2 mb-0">et {{ data.receivables.overdue_count|add:"-5" }} autre{{ data.receivables.overdue_count|add:"-5"|pluralize }}…</p>{% endif %}
+  </div></div>
+  {% endif %}
+
+  {# ===== Commandes fournisseurs à réceptionner : liste de PurchaseOrder ===== #}
+  {% if "purchase_to_receive" in data %}
   <div class="col-lg-6"><div class="card-bar h-100">
     <div class="blk-title"><h2>À réceptionner</h2></div>
     <ul class="rows">
-      {% for o in data.purchase_to_receive.rows %}
-        <li><span>{{ o.supplier }}<span class="sub">Commande {{ o.reference }}</span></span><b>{{ o.total|floatformat:"0g" }} FCFA</b></li>
+      {% for o in data.purchase_to_receive %}
+        <li>
+          <span><a href="{% url 'purchasing:order_detail' o.pk %}">{{ o.supplier.name }}</a><span class="sub">{{ o.reference }}{% if o.expected_at %}, livraison prévue le {{ o.expected_at|date:"j F" }}{% endif %}</span></span>
+          <b>{{ o.total_fcfa|floatformat:"0g" }} FCFA</b>
+        </li>
       {% empty %}<li class="empty">Aucune commande en attente de réception.</li>{% endfor %}
     </ul>
   </div></div>
   {% endif %}
 
-  {# ===== Dernières réceptions ===== #}
-  {% if data.recent_receptions %}
+  {# ===== Dernières réceptions : liste de PurchaseOrder ===== #}
+  {% if "recent_receptions" in data %}
   <div class="col-lg-6"><div class="card-bar h-100">
     <div class="blk-title"><h2>Dernières réceptions</h2></div>
     <ul class="rows">
-      {% for r in data.recent_receptions.rows %}
-        <li><span>{{ r.supplier }}<span class="sub">{{ r.date|date:"j F" }}</span></span><b>{{ r.reference }}</b></li>
+      {% for r in data.recent_receptions %}
+        <li>
+          <span><a href="{% url 'purchasing:order_detail' r.pk %}">{{ r.supplier.name }}</a><span class="sub">Reçue le {{ r.received_at|date:"j F" }}</span></span>
+          <b>{{ r.reference }}</b>
+        </li>
       {% empty %}<li class="empty">Aucune réception récente.</li>{% endfor %}
     </ul>
   </div></div>
   {% endif %}
 
-  {# ===== Pertes à valider ===== #}
+  {# ===== Pertes à valider : {count, items} ===== #}
   {% if data.pending_losses %}
   <div class="col-lg-6"><div class="card-bar h-100">
     <div class="blk-title"><h2>Pertes à valider</h2></div>
     <ul class="rows">
-      {% for l in data.pending_losses.rows %}
-        <li><span>{{ l.product }}<span class="sub">{{ l.reason }}</span></span><b>{{ l.qty }}</b></li>
+      {% for l in data.pending_losses.items %}
+        <li>
+          <span>{{ l.product_bar.product }}<span class="sub">{% if l.declared_by %}Déclarée par {% firstof l.declared_by.first_name l.declared_by.get_username %}{% endif %}</span></span>
+          {% if l.quantity %}<b>{{ l.quantity|floatformat:"-1g" }}</b>{% endif %}
+        </li>
       {% empty %}<li class="empty">Aucune perte en attente.</li>{% endfor %}
     </ul>
-  </div></div>
-  {% endif %}
-
-  {# ===== Équipe ===== #}
-  {% if data.team %}
-  <div class="col-lg-6"><div class="card-bar h-100">
-    <div class="blk-title"><h2>Équipe</h2>{% if add_member_url %}<a href="{{ add_member_url }}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-person-plus"></i> Ajouter</a>{% endif %}</div>
-    <ul class="rows">
-      {% for m in data.team.rows %}
-        <li><span>{{ m.name }}</span><b>{{ m.role }}</b></li>
-      {% empty %}<li class="empty">Aucun collaborateur pour le moment.</li>{% endfor %}
-    </ul>
+    {% if data.pending_losses.count > 6 %}<p class="text-secondary small mt-2 mb-0">et {{ data.pending_losses.count|add:"-6" }} autre{{ data.pending_losses.count|add:"-6"|pluralize }}…</p>{% endif %}
   </div></div>
   {% endif %}
 
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-  // Hauteur des barres de la semaine, proportionnelle au meilleur jour
-  (function () {
-    var bars = document.querySelectorAll('#weekChart .wk-bar');
-    if (!bars.length) return;
-    var max = Math.max.apply(null, Array.prototype.map.call(bars, function (b) { return parseFloat(b.dataset.v) || 0; }));
-    requestAnimationFrame(function () {
-      bars.forEach(function (b) {
-        var v = parseFloat(b.dataset.v) || 0;
-        b.style.setProperty('--h', (max ? Math.max(v / max * 100, 3) : 3) + '%');
-      });
-    });
-  })();
-</script>
 {% endblock %}

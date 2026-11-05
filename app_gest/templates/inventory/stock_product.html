@@ -1,0 +1,73 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Stock : {{ pb.product.name }}{% endblock %}
+{% block page_title %}{{ pb.product.name }}{% endblock %}
+{% block page_sub %}{{ pb.product.category.name }}{% if pb.product.brand %}, {{ pb.product.brand }}{% endif %}{% if pb.product.volume_cl %}, {{ pb.product.volume_cl }} cl{% endif %}{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}
+<style>
+  .lot { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .lot:last-child { border-bottom: 0; }
+  .lot .sub { display: block; color: var(--muted); font-size: .82rem; }
+  .k-neg { color: #E5534B; } .k-low { color: #E8991C; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'inventory:stock_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Stock</a>
+  <a href="{% url 'inventory:movement_list' %}?product={{ pb.pk }}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left-right"></i> Tous les mouvements</a>
+  {% if can_adjust %}<a href="{% url 'inventory:adjust_stock' %}" class="btn btn-primary"><i class="bi bi-sliders"></i> Ajuster le stock</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <div class="col-lg-5 d-grid gap-4 align-content-start">
+    <div class="card-bar">
+      <div class="kpis">
+        <div class="kpi"><div class="k-l">En stock</div>
+          <div class="k-v {% if qty <= 0 %}k-neg{% elif qty <= pb.low_stock_threshold %}k-low{% endif %}">{{ qty|floatformat:"-3g" }} <small>unités</small></div>
+          <div class="k-s">{% if qty <= 0 %}Rupture{% elif qty <= pb.low_stock_threshold %}Stock bas{% else %}Stock suffisant{% endif %}</div>
+        </div>
+        <div class="kpi"><div class="k-l">Seuil d'alerte</div><div class="k-v">{{ pb.low_stock_threshold|floatformat:"-3g" }}</div></div>
+        {% if can_costs %}<div class="kpi"><div class="k-l">Valeur</div><div class="k-v">{{ value|floatformat:"0g" }} <small>FCFA</small></div></div>{% endif %}
+      </div>
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Lots en stock</h2></div>
+      {% for lot in lots %}
+        <div class="lot">
+          <span>{{ lot.remaining_qty|floatformat:"-3g" }} restant{{ lot.remaining_qty|pluralize }} sur {{ lot.initial_qty|floatformat:"-3g" }}
+            <span class="sub">Reçu le {{ lot.received_at|date:"j F Y" }}{% if can_costs %}, achat {{ lot.unit_cost_fcfa|floatformat:"-2g" }} FCFA l'unité{% endif %}</span></span>
+          <span class="chip chip-neutral">{{ lot.get_source_display }}</span>
+        </div>
+      {% empty %}<p class="text-secondary mb-0">Aucun lot en stock. Le stock se remplit par une réception, un stock initial ou un ajustement.</p>{% endfor %}
+      <p class="text-secondary small mt-3 mb-0">Les ventes vident d'abord le lot le plus ancien (méthode FIFO).</p>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card-bar flush">
+      <div class="p-3 pb-2"><div class="blk-title mb-0"><h2>Derniers mouvements</h2></div></div>
+      <div class="table-wrap">
+        <table class="t">
+          <thead><tr><th>Date</th><th class="l">Type</th><th>Quantité</th>{% if can_costs %}<th>Coût unitaire</th>{% endif %}<th class="l">Détail</th></tr></thead>
+          <tbody>
+            {% for m in movements %}
+            <tr>
+              <td>{{ m.occurred_at|date:"j M, H:i" }}</td>
+              <td class="l"><span class="chip {% if m.quantity > 0 %}chip-jus{% else %}chip-alcool{% endif %}">{{ m.get_kind_display }}</span></td>
+              <td><b class="{% if m.quantity > 0 %}pos{% else %}neg{% endif %}">{% if m.quantity > 0 %}+{% endif %}{{ m.quantity|floatformat:"-3g" }}</b></td>
+              {% if can_costs %}<td class="muted">{{ m.unit_cost_fcfa|floatformat:"-2g" }}</td>{% endif %}
+              <td class="l muted">{% if m.note %}{{ m.note }}{% endif %}{% if m.created_by %}<span class="sub">par {% firstof m.created_by.first_name m.created_by.get_username %}</span>{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="empty-row">Aucun mouvement enregistré pour ce produit.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

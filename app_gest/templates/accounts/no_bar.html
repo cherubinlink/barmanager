@@ -1,4 +1,4 @@
-{% extends "navigateur/base_auth.html" %}
+{% extends "accounts/base_auth.html" %}
 
 {% block title %}Aucun bar{% endblock %}
 
@@ -16,7 +16,7 @@
 
 <div class="d-grid gap-2">
   {% url 'accounts:new_bar' as new_bar_url %}
-  {% if new_bar_url %}<a href="{{ new_bar_url }}" class="btn btn-primary btn-lg"><i class="bi bi-plus-circle"></i> Créer mon bar</a>{% endif %}
+  {% if new_bar_url and can_create_bar %}<a href="{{ new_bar_url }}" class="btn btn-primary btn-lg"><i class="bi bi-plus-circle"></i> Créer mon bar</a>{% endif %}
   {% url 'accounts:logout' as logout_url %}
   {% if logout_url %}
   <form method="post" action="{{ logout_url }}">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary btn-lg w-100 rounded-pill">Se déconnecter</button></form>

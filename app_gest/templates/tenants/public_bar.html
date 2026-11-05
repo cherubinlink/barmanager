@@ -1,0 +1,321 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" data-bs-theme="light" data-accent="ambre">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ public_bar.name }} : menu et prix</title>
+  <meta name="description" content="Menu et prix de {{ public_bar.name }}{% if public_bar.city %} à {{ public_bar.city }}{% endif %}.">
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('bar:settings') || '{}');
+        var t = s.theme || 'auto';
+        if (t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-bs-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'css/bar.css' %}" rel="stylesheet">
+  <style>
+    html { scroll-behavior: smooth; scroll-padding-top: 130px; }
+    .pb-wrap { max-width: 760px; margin: 0 auto; padding: 0 1rem 7rem; }
+    .pb-top { display: flex; justify-content: flex-end; padding: .9rem 0 0; }
+    .pb-hero { text-align: center; padding: 1.25rem 0 1.5rem; }
+    .pb-logo { width: 68px; height: 68px; margin: 0 auto 1rem; display: grid; place-items: center; font-size: 1.8rem; border-radius: calc(var(--radius) * 1.1);
+      background: var(--accent); color: var(--accent-ink); box-shadow: 0 10px 26px -10px var(--accent); }
+    .pb-hero h1 { font-weight: 800; font-size: clamp(1.9rem, 6vw, 2.8rem); line-height: 1.05; margin-bottom: .5rem; }
+    .pb-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem 1.1rem; color: var(--muted); font-size: .93rem; }
+    .pb-meta a { color: var(--muted); text-decoration: none; }
+    .pb-meta a:hover { color: var(--accent); }
+    .pb-meta i { color: var(--accent); margin-right: .25rem; }
+
+    .pb-bar { position: sticky; top: 0; z-index: 20; padding: .7rem 0; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
+    .pb-search { position: relative; margin-bottom: .6rem; }
+    .pb-search i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+    .pb-search input { width: 100%; padding: .7rem 1rem .7rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+    .pb-search input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .pb-cats { display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .25rem; scrollbar-width: none; }
+    .pb-cats::-webkit-scrollbar { display: none; }
+    .pb-cats a { flex: none; padding: .45rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+    .pb-cats a:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+    .pb-cat { margin-top: 1.75rem; }
+    .pb-cat h2 { display: flex; align-items: baseline; justify-content: space-between; font-size: calc(1.35rem * var(--title-scale)); font-weight: 800; margin-bottom: .6rem; }
+    .pb-cat h2 small { font-family: var(--font-body); font-size: .8rem; color: var(--muted); font-weight: 500; }
+    .pb-list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .pb-item { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .85rem 1.15rem; border-bottom: 1px dashed var(--line); transition: background .2s; }
+    .pb-item:last-child { border-bottom: 0; }
+    .pb-item.in-cart { background: var(--accent-soft); }
+    .pb-info { flex: 1; display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+    .pb-item .nm { font-weight: 600; }
+    .pb-item .pr { font-family: var(--font-display); font-weight: 800; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .pb-item .pr small { font-family: var(--font-body); color: var(--muted); font-weight: 500; font-size: .75rem; }
+    .pb-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+    .pb-foot { text-align: center; color: var(--muted); font-size: .82rem; margin-top: 2.5rem; }
+
+    /* Quantités */
+    .qty-ctrl { display: flex; align-items: center; gap: .55rem; flex: none; }
+    .qty-ctrl .qty { min-width: 1.2rem; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .btn-qty { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+      font-size: 1.25rem; line-height: 1; display: grid; place-items: center; cursor: pointer; padding: 0; transition: transform .1s; }
+    .btn-qty:active { transform: scale(.92); }
+    .btn-qty.plus { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+    /* Barre de commande fixe */
+    .cart-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: center;
+      padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--bg) 90%, transparent);
+      backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+    .cart-bar[hidden] { display: none; }
+    .cart-bar-inner { width: 100%; max-width: 760px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .cart-sum { line-height: 1.25; }
+    .cart-sum small { display: block; color: var(--muted); }
+    .cart-sum strong { font-family: var(--font-display); font-size: 1.1rem; }
+    .btn-order { border: 0; border-radius: 999px; padding: .75rem 1.5rem; font-weight: 700; background: var(--accent); color: var(--accent-ink);
+      box-shadow: 0 10px 26px -12px var(--accent); cursor: pointer; }
+
+    /* Fenêtre récapitulatif */
+    dialog.order-dlg { border: 1px solid var(--line); border-radius: var(--radius); padding: 0; width: min(520px, 94vw); max-height: 88vh;
+      background: var(--surface); color: var(--ink); box-shadow: 0 30px 80px -20px rgba(0,0,0,.5); }
+    dialog.order-dlg::backdrop { background: rgba(0,0,0,.5); backdrop-filter: blur(3px); }
+    .dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+    .dlg-head h3 { margin: 0; font-size: 1.2rem; font-weight: 800; }
+    .dlg-close { border: 0; background: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; }
+    .dlg-body { padding: 1rem 1.25rem; overflow-y: auto; max-height: 55vh; }
+    .dlg-line { display: flex; justify-content: space-between; gap: 1rem; padding: .5rem 0; border-bottom: 1px dashed var(--line); }
+    .dlg-total { display: flex; justify-content: space-between; font-weight: 800; font-size: 1.1rem; padding: .9rem 0; }
+    .dlg-note { width: 100%; padding: .65rem .9rem; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+    .dlg-note:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .dlg-msg { margin-top: .8rem; padding: .7rem .9rem; border-radius: 12px; font-size: .92rem; }
+    .dlg-msg.err { background: #fee2e2; color: #991b1b; }
+    .dlg-msg.ok { background: #dcfce7; color: #166534; }
+    .dlg-foot { display: flex; gap: .6rem; padding: 1rem 1.25rem; border-top: 1px solid var(--line); }
+    .dlg-foot button { flex: 1; padding: .7rem 1rem; border-radius: 999px; font-weight: 700; cursor: pointer; }
+    .dlg-back { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+    .dlg-send { background: var(--accent); border: 0; color: var(--accent-ink); }
+    .dlg-send:disabled { opacity: .6; cursor: wait; }
+  </style>
+</head>
+<body>
+<div class="pb-wrap">
+
+  <div class="pb-top">
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème">
+      <i class="bi bi-moon-stars theme-icon-light"></i><i class="bi bi-brightness-high theme-icon-dark"></i>
+    </button>
+  </div>
+
+  <header class="pb-hero">
+    <div class="pb-logo"><i class="bi bi-cup-straw"></i></div>
+    <h1>{{ public_bar.name }}</h1>
+    <div class="pb-meta">
+      {% if public_bar.city %}<span><i class="bi bi-geo-alt"></i>{{ public_bar.city }}</span>{% endif %}
+      {% if public_bar.address %}<span>{{ public_bar.address }}</span>{% endif %}
+      {% if public_bar.phone %}<a href="tel:{{ public_bar.phone }}"><i class="bi bi-telephone"></i>{{ public_bar.phone }}</a>{% endif %}
+    </div>
+  </header>
+
+  {% if menu %}
+  <div class="pb-bar">
+    <div class="pb-search">
+      <i class="bi bi-search"></i>
+      <input type="search" id="menuSearch" placeholder="Rechercher une boisson" aria-label="Rechercher une boisson">
+    </div>
+    <nav class="pb-cats" aria-label="Catégories">
+      {% for category, items in menu.items %}
+        <a href="#cat-{{ forloop.counter }}">{{ category }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  <main id="menu">
+    {% for category, items in menu.items %}
+    <section class="pb-cat" id="cat-{{ forloop.counter }}">
+      <h2>{{ category }} <small>{{ items|length }} produit{{ items|length|pluralize }}</small></h2>
+      <div class="pb-list">
+        {% for pb in items %}
+          <div class="pb-item" data-name="{{ pb.product.name|lower }}" data-id="{{ pb.id }}" data-price="{{ pb.sale_price_fcfa }}">
+            <div class="pb-info">
+              <span class="nm">{{ pb.product.name }}</span>
+              <span class="pr">{{ pb.sale_price_fcfa|floatformat:"0g" }} <small>FCFA</small></span>
+            </div>
+            <div class="qty-ctrl">
+              <button type="button" class="btn-qty minus" hidden aria-label="Retirer une unité">−</button>
+              <span class="qty" hidden>0</span>
+              <button type="button" class="btn-qty plus" aria-label="Ajouter une unité">+</button>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+    <p class="pb-empty" id="noResult" hidden>Aucune boisson ne correspond à votre recherche.</p>
+  </main>
+  {% else %}
+    <p class="pb-empty">Le menu de ce bar n'est pas encore disponible.</p>
+  {% endif %}
+
+  <footer class="pb-foot">Prix en FCFA, donnés à titre indicatif.<br>Propulsé par {{ site_name|default:"BarManager" }}</footer>
+</div>
+
+{% if menu %}
+<!-- Barre de commande -->
+<div class="cart-bar" id="cartBar" hidden>
+  <div class="cart-bar-inner">
+    <div class="cart-sum">
+      <small><span id="cartCount">0</span> article(s)</small>
+      <strong><span id="cartTotal">0</span> FCFA</strong>
+    </div>
+    <button type="button" class="btn-order" id="openOrder">
+      <i class="bi bi-bag-check me-1"></i>Passer commande
+    </button>
+  </div>
+</div>
+
+<!-- Récapitulatif -->
+<dialog class="order-dlg" id="orderDlg">
+  {% csrf_token %}
+  <div class="dlg-head">
+    <h3>Votre commande</h3>
+    <button type="button" class="dlg-close" id="closeDlg" aria-label="Fermer"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="dlg-body">
+    <div id="cartLines"></div>
+    <div class="dlg-total"><span>Total</span><span><span id="cartTotal2">0</span> FCFA</span></div>
+    <input type="text" id="orderNote" class="dlg-note" maxlength="200" placeholder="N° de table ou remarque (facultatif)">
+    <div class="dlg-msg err" id="orderError" hidden></div>
+    <div class="dlg-msg ok" id="orderOk" hidden></div>
+  </div>
+  <div class="dlg-foot">
+    <button type="button" class="dlg-back" id="backDlg">Continuer</button>
+    <button type="button" class="dlg-send" id="sendOrder">Envoyer la commande</button>
+  </div>
+</dialog>
+{% endif %}
+
+<script src="{% static 'js/bar.js' %}"></script>
+<script>
+  // Recherche instantanée : masque les boissons et les catégories sans résultat
+  (function () {
+    var input = document.getElementById('menuSearch');
+    if (!input) return;
+    var items = document.querySelectorAll('.pb-item'), cats = document.querySelectorAll('.pb-cat'), none = document.getElementById('noResult');
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase(), shown = 0;
+      items.forEach(function (it) {
+        var ok = !q || it.dataset.name.indexOf(q) !== -1;
+        it.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      });
+      cats.forEach(function (c) {
+        c.style.display = Array.prototype.some.call(c.querySelectorAll('.pb-item'), function (i) { return i.style.display !== 'none'; }) ? '' : 'none';
+      });
+      none.hidden = shown > 0;
+    });
+  })();
+</script>
+
+{% if menu %}
+<script>
+  // Panier et envoi de la commande
+  (function () {
+    var cart = {};  // { id: {name, price, qty} }
+    var fmt = function (n) { return n.toLocaleString('fr-FR'); };
+    var $ = function (id) { return document.getElementById(id); };
+    var dlg = $('orderDlg');
+
+    function esc(s) {
+      var d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+    }
+
+    function refresh() {
+      var count = 0, total = 0, html = '';
+      Object.keys(cart).forEach(function (id) {
+        var l = cart[id];
+        count += l.qty; total += l.qty * l.price;
+        html += '<div class="dlg-line"><span>' + l.qty + ' × ' + esc(l.name) + '</span><span>' + fmt(l.qty * l.price) + '</span></div>';
+      });
+      $('cartBar').hidden = count === 0;
+      $('cartCount').textContent = count;
+      $('cartTotal').textContent = fmt(total);
+      $('cartTotal2').textContent = fmt(total);
+      $('cartLines').innerHTML = html;
+      if (count === 0 && dlg.open) dlg.close();
+    }
+
+    function paintItem(item, qty) {
+      item.querySelector('.qty').textContent = qty;
+      item.querySelector('.qty').hidden = qty === 0;
+      item.querySelector('.minus').hidden = qty === 0;
+      item.classList.toggle('in-cart', qty > 0);
+    }
+
+    $('menu').addEventListener('click', function (e) {
+      var btn = e.target.closest('.btn-qty');
+      if (!btn) return;
+      var item = btn.closest('.pb-item'), id = item.dataset.id;
+      if (!cart[id]) {
+        cart[id] = { name: item.querySelector('.nm').textContent.trim(), price: parseInt(item.dataset.price, 10), qty: 0 };
+      }
+      cart[id].qty += btn.classList.contains('plus') ? 1 : -1;
+      if (cart[id].qty > 99) cart[id].qty = 99;
+      var qty = cart[id].qty;
+      if (qty <= 0) { delete cart[id]; qty = 0; }
+      paintItem(item, qty);
+      refresh();
+    });
+
+    $('openOrder').addEventListener('click', function () {
+      $('orderError').hidden = true; $('orderOk').hidden = true;
+      dlg.showModal();
+    });
+    $('closeDlg').addEventListener('click', function () { dlg.close(); });
+    $('backDlg').addEventListener('click', function () { dlg.close(); });
+
+    $('sendOrder').addEventListener('click', function () {
+      var err = $('orderError'), ok = $('orderOk'), btn = $('sendOrder');
+      err.hidden = true; ok.hidden = true;
+      var lines = Object.keys(cart).map(function (id) { return { id: parseInt(id, 10), qty: cart[id].qty }; });
+      if (!lines.length) return;
+
+      btn.disabled = true;
+      fetch("", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': dlg.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ lines: lines, note: $('orderNote').value })
+      })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok) throw new Error(data.error || 'Une erreur est survenue.');
+          return data;
+        });
+      })
+      .then(function (data) {
+        ok.textContent = 'Commande n°' + data.number + ' envoyée ! Le serveur arrive.';
+        ok.hidden = false;
+        Object.keys(cart).forEach(function (k) { delete cart[k]; });
+        document.querySelectorAll('.pb-item.in-cart').forEach(function (i) { paintItem(i, 0); });
+        $('orderNote').value = '';
+        $('cartBar').hidden = true;
+        $('cartLines').innerHTML = '';
+        $('cartTotal2').textContent = '0';
+      })
+      .catch(function (e) {
+        err.textContent = e.message || 'Impossible d\'envoyer la commande.';
+        err.hidden = false;
+      })
+      .finally(function () { btn.disabled = false; });
+    });
+  })();
+</script>
+{% endif %}
+</body>
+</html>

@@ -1,0 +1,112 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Réception {{ order.reference }}{% endblock %}
+{% block page_title %}Réceptionner {{ order.reference }}{% endblock %}
+{% block page_sub %}Livraison de {{ order.supplier.name }}. Indiquez ce que vous recevez maintenant : le stock est mis à jour dès la validation.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .rx-shell { max-width: 820px; }
+  .rx-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .6rem 1.25rem; padding: 1rem 0; border-bottom: 1px dashed var(--line); }
+  .rx-row:last-of-type { border-bottom: 0; }
+  .rx-info b { display: block; }
+  .rx-info .sub { display: block; color: var(--muted); font-size: .85rem; }
+  .rx-input { display: flex; align-items: center; gap: .4rem; }
+  .rx-input input { width: 6rem; text-align: center; font-weight: 700; font-size: 1.1rem; padding: .55rem .5rem; }
+  .rx-units { min-width: 90px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rx-units b { color: var(--ink); font-size: 1.1rem; }
+  .rx-err { grid-column: 1 / -1; color: #E5534B; font-size: .85rem; }
+  .rx-bar { position: sticky; bottom: 1rem; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.5rem; margin-top: 1.25rem; padding: 1rem 1.25rem;
+    background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: var(--shadow), 0 12px 30px -12px rgba(0,0,0,.35); }
+  .rx-total { font-variant-numeric: tabular-nums; }
+  .rx-total b { font-family: var(--font-display); font-size: calc(1.3rem * var(--title-scale)); color: var(--accent); }
+  @media (max-width: 575.98px) { .rx-row { grid-template-columns: 1fr auto; } .rx-units { grid-column: 1 / -1; text-align: left; } .rx-bar { bottom: 5.5rem; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'purchasing:order_detail' order.pk %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Retour à la commande</a>
+{% endblock %}
+
+{% block content %}
+<div class="rx-shell">
+  <form method="post" class="rx-form" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger" role="alert">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+    {% endif %}
+
+    <div class="card-bar">
+      <div class="blk-title">
+        <h2>Produits à recevoir</h2>
+        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="allBtn"><i class="bi bi-check2-all"></i> Tout recevoir</button>
+      </div>
+
+      {% for field in form %}
+      <div class="rx-row" data-upp="{{ field.field.line.units_per_package }}" data-max="{{ field.field.remaining }}">
+        <div class="rx-info">
+          <b>{{ field.label }}</b>
+          <span class="sub">Commandé {{ field.field.line.quantity_packages }}, déjà reçu {{ field.field.line.received_packages }}, reste {{ field.field.remaining }}</span>
+          <span class="sub">{% if field.field.line.packaging %}{{ field.field.line.packaging.name }}, {% endif %}{{ field.field.line.units_per_package }} unité{{ field.field.line.units_per_package|pluralize }} par conditionnement</span>
+        </div>
+        <div class="rx-input">
+          {{ field }}
+          <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill rx-none" title="Rien reçu pour ce produit" aria-label="Rien reçu">0</button>
+        </div>
+        <div class="rx-units"><b class="rx-u">0</b> unités</div>
+        {% for e in field.errors %}<div class="rx-err">{{ e }}</div>{% endfor %}
+      </div>
+      {% empty %}
+        <p class="text-secondary mb-0">Tous les produits de cette commande ont déjà été reçus.</p>
+      {% endfor %}
+    </div>
+
+    <div class="rx-bar">
+      <div class="rx-total">Vous recevez <b id="totPk">0</b> conditionnement<span id="totPkS">s</span>, soit <b id="totUn">0</b> unités en stock.</div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'purchasing:order_detail' order.pk %}" class="btn btn-outline-secondary rounded-pill">Annuler</a>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-box-seam"></i> Valider la réception</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var rows = document.querySelectorAll('.rx-row');
+    if (!rows.length) return;
+    rows.forEach(function (r) {
+      var inp = r.querySelector('input');
+      if (inp) inp.classList.add('form-control');
+    });
+
+    var fmt = function (n) { return n.toLocaleString('fr-FR'); };
+    function update() {
+      var pk = 0, un = 0;
+      rows.forEach(function (r) {
+        var inp = r.querySelector('input'), upp = parseInt(r.dataset.upp, 10) || 0, max = parseInt(r.dataset.max, 10) || 0;
+        var q = Math.min(Math.max(parseInt(inp.value, 10) || 0, 0), max);
+        r.querySelector('.rx-u').textContent = fmt(q * upp);
+        pk += q; un += q * upp;
+      });
+      document.getElementById('totPk').textContent = fmt(pk);
+      document.getElementById('totPkS').textContent = pk > 1 ? 's' : '';
+      document.getElementById('totUn').textContent = fmt(un);
+    }
+
+    rows.forEach(function (r) {
+      var inp = r.querySelector('input');
+      inp.addEventListener('input', update);
+      r.querySelector('.rx-none').addEventListener('click', function () { inp.value = 0; update(); });
+    });
+    document.getElementById('allBtn').addEventListener('click', function () {
+      rows.forEach(function (r) { r.querySelector('input').value = r.dataset.max; });
+      update();
+    });
+    update();
+  })();
+</script>
+{% endblock %}

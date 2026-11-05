@@ -2,13 +2,15 @@ from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
-from .utils import active_memberships
+from .utils import active_memberships, owns_a_bar
 
 from django.utils import timezone
 
 
 def current_bar(request):
     ctx = {"site_name": getattr(settings, "SITE_NAME", "BarManager")}
+    user = getattr(request, "user", None)
+    ctx["can_create_bar"] = bool(user and owns_a_bar(user))
     bar = getattr(request, "bar", None)
     if bar is None:
         return ctx

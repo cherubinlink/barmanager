@@ -1,0 +1,84 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Clôture du {{ closing.business_date|date:"j F Y" }}{% endblock %}
+{% block page_title %}Clôture du {{ closing.business_date|date:"j F Y" }}{% endblock %}
+{% block page_sub %}Clôturée le {{ closing.closed_at|date:"j F Y à H:i" }} par {% firstof closing.closed_by.first_name closing.closed_by.get_username %}.{% endblock %}
+
+{% block extra_css %}{% include "inventory/_styles.html" %}
+<style>
+  .big-gap { font-family: var(--font-display); font-weight: 800; }
+  .gap-cell { font-weight: 700; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'inventory:closing_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Clôtures</a>
+  <button type="button" class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Chiffre d'affaires</span>
+    <span class="value">{{ revenue|floatformat:"0g" }} <small>FCFA</small></span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Coût des ventes</span>
+    <span class="value">{{ cogs|floatformat:"0g" }} <small>FCFA</small></span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Marge brute</span>
+    <span class="value js-diff" data-a="{% localize off %}{{ revenue }}{% endlocalize %}" data-b="{% localize off %}{{ cogs }}{% endlocalize %}" data-unit="FCFA">—</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Caisse</span>
+    <span class="value">{{ closing.cash_expected_fcfa|floatformat:"0g" }} <small>FCFA attendus</small></span>
+    {% if closing.cash_counted_fcfa is not None %}
+      <span class="label">Comptés : {{ closing.cash_counted_fcfa|floatformat:"0g" }} FCFA,
+        {% if cash_diff == 0 %}<b class="pos">aucun écart</b>{% elif cash_diff > 0 %}<b class="pos">+{{ cash_diff|floatformat:"0g" }} d'écart</b>{% else %}<b class="neg">{{ cash_diff|floatformat:"0g" }} d'écart</b>{% endif %}</span>
+    {% else %}<span class="label">Espèces non comptées</span>{% endif %}
+  </div></div>
+</div>
+
+{% if closing.note %}<div class="alert alert-secondary"><i class="bi bi-journal-text"></i> {{ closing.note }}</div>{% endif %}
+
+<div class="card-bar flush">
+  <div class="table-wrap">
+    <table class="t">
+      <thead>
+        <tr><th>Produit</th><th>Ouverture</th><th>Entrées</th><th>Ventes</th><th>Pertes</th><th>Ajust.</th><th>Clôture</th><th>Chiffre d'affaires</th><th>Marge</th></tr>
+      </thead>
+      <tbody>
+        {% for l in lines %}
+        <tr>
+          <td><span class="nm">{{ l.product_bar.product }}</span></td>
+          <td class="muted">{{ l.opening_qty|floatformat:"-3g" }}</td>
+          <td class="{% if l.in_qty %}pos{% else %}muted{% endif %}">{{ l.in_qty|floatformat:"-3g" }}</td>
+          <td>{{ l.sold_qty|floatformat:"-3g" }}</td>
+          <td class="{% if l.lost_qty %}neg{% else %}muted{% endif %}">{{ l.lost_qty|floatformat:"-3g" }}</td>
+          <td class="muted">{{ l.adjust_qty|floatformat:"-3g" }}</td>
+          <td><b class="{% if l.closing_qty <= 0 %}neg{% endif %}">{{ l.closing_qty|floatformat:"-3g" }}</b></td>
+          <td>{{ l.revenue_fcfa|floatformat:"0g" }}</td>
+          <td class="gap-cell js-diff" data-a="{% localize off %}{{ l.revenue_fcfa }}{% endlocalize %}" data-b="{% localize off %}{{ l.cogs_fcfa }}{% endlocalize %}">—</td>
+        </tr>
+        {% empty %}<tr><td colspan="9" class="empty-row">Aucun mouvement ce jour-là.</td></tr>{% endfor %}
+      </tbody>
+      {% if lines %}
+      <tfoot><tr><td colspan="7">Total</td><td>{{ revenue|floatformat:"0g" }}</td><td class="js-diff" data-a="{% localize off %}{{ revenue }}{% endlocalize %}" data-b="{% localize off %}{{ cogs }}{% endlocalize %}">—</td></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.js-diff').forEach(function (c) {
+    var d = (parseFloat(c.dataset.a) || 0) - (parseFloat(c.dataset.b) || 0), unit = c.dataset.unit ? ' ' + c.dataset.unit : '';
+    c.textContent = (d > 0 ? '+' : '') + d.toLocaleString('fr-FR') + unit;
+    c.classList.add(d < 0 ? 'neg' : d > 0 ? 'pos' : 'muted');
+  });
+</script>
+{% endblock %}
