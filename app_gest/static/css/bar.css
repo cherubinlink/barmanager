@@ -207,3 +207,24 @@ h4 { font-size: calc(1.15rem * var(--title-scale)); }
 
 
 
+/* ==========================================================
+   Couleurs d'accent supplémentaires
+   À coller à la FIN de bar.css (toutes les pages chargent bar.css :
+   page d'accueil, connexion et menu client utilisent aussi l'accent choisi).
+   ========================================================== */
+[data-accent="cuivre"]   { --accent:#C8693A; --accent-ink:#FFFFFF; --accent-soft:rgba(200,105,58,.16); }
+[data-accent="corail"]   { --accent:#F2705A; --accent-ink:#2B0E08; --accent-soft:rgba(242,112,90,.16); }
+[data-accent="bordeaux"] { --accent:#A3283F; --accent-ink:#FFFFFF; --accent-soft:rgba(163,40,63,.14); }
+[data-accent="cassis"]   { --accent:#8B5CF6; --accent-ink:#FFFFFF; --accent-soft:rgba(139,92,246,.16); }
+[data-accent="lagon"]    { --accent:#0EA5C6; --accent-ink:#03222B; --accent-soft:rgba(14,165,198,.16); }
+[data-accent="menthe"]   { --accent:#14B8A6; --accent-ink:#042F2A; --accent-soft:rgba(20,184,166,.16); }
+[data-accent="citron"]   { --accent:#8DB32F; --accent-ink:#1B2606; --accent-soft:rgba(141,179,47,.18); }
+[data-accent="ardoise"]  { --accent:#64748B; --accent-ink:#FFFFFF; --accent-soft:rgba(100,116,139,.18); }
+
+/* Mode sombre : versions plus claires des teintes foncées, pour que le texte reste lisible */
+[data-bs-theme="dark"][data-accent="bordeaux"] { --accent:#E0566D; --accent-ink:#2B0A10; }
+[data-bs-theme="dark"][data-accent="cassis"]   { --accent:#A78BFA; --accent-ink:#1E1033; }
+[data-bs-theme="dark"][data-accent="ardoise"]  { --accent:#94A3B8; --accent-ink:#0F172A; }
+
+/* Douze pastilles : elles passent à la ligne au lieu de déborder du panneau */
+.swatches { flex-wrap: wrap; gap: .6rem; }

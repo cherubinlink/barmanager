@@ -61,6 +61,14 @@
     .user-menu button.dropdown-item { width: 100%; background: none; border: 0; text-align: left; }
     .avatar-btn { border: 0; padding: 0; cursor: pointer; }
     @media (max-width: 575.98px) { .sub-chip .sub-text { display: none; } }
+
+    /* Menu latéral : seule la liste des liens défile */
+.sidebar { height: 100vh; height: 100dvh; }
+.sidebar > .brand, .sidebar > .bar-card, .sidebar > .nav-collapse, .sidebar > form { flex: none; }
+.nav-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.nav-list::-webkit-scrollbar { width: 6px; }
+.nav-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+@media (max-height: 720px) { .sidebar { gap: .75rem; padding-block: .85rem; } .nav-item { padding-block: .55rem; } }
   </style>
   {% block extra_css %}{% endblock %}
 </head>
@@ -236,10 +244,18 @@
     <div class="setting">
       <label class="setting-label">Couleur d'accent</label>
       <div class="swatches" data-setting="accent">
-        <button type="button" data-value="ambre" style="--c:#E8991C" title="Ambre"></button>
-        <button type="button" data-value="houblon" style="--c:#4FA463" title="Houblon"></button>
-        <button type="button" data-value="hibiscus" style="--c:#D6456B" title="Hibiscus"></button>
-        <button type="button" data-value="nuit" style="--c:#4F8DF7" title="Nuit"></button>
+         <button type="button" data-value="ambre" style="--c:#E8991C" title="Ambre" aria-label="Ambre"></button>
+  <button type="button" data-value="cuivre" style="--c:#C8693A" title="Cuivre" aria-label="Cuivre"></button>
+  <button type="button" data-value="corail" style="--c:#F2705A" title="Corail" aria-label="Corail"></button>
+  <button type="button" data-value="hibiscus" style="--c:#D6456B" title="Hibiscus" aria-label="Hibiscus"></button>
+  <button type="button" data-value="bordeaux" style="--c:#A3283F" title="Bordeaux" aria-label="Bordeaux"></button>
+  <button type="button" data-value="cassis" style="--c:#8B5CF6" title="Cassis" aria-label="Cassis"></button>
+  <button type="button" data-value="nuit" style="--c:#4F8DF7" title="Nuit" aria-label="Nuit"></button>
+  <button type="button" data-value="lagon" style="--c:#0EA5C6" title="Lagon" aria-label="Lagon"></button>
+  <button type="button" data-value="menthe" style="--c:#14B8A6" title="Menthe" aria-label="Menthe"></button>
+  <button type="button" data-value="houblon" style="--c:#4FA463" title="Houblon" aria-label="Houblon"></button>
+  <button type="button" data-value="citron" style="--c:#8DB32F" title="Citron" aria-label="Citron"></button>
+  <button type="button" data-value="ardoise" style="--c:#64748B" title="Ardoise" aria-label="Ardoise"></button>
       </div>
     </div>
     <div class="setting">

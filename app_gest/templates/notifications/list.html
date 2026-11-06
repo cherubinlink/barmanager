@@ -1,0 +1,157 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Notifications{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+{% block page_sub %}{% if unread %}{{ unread }} non lue{{ unread|pluralize }}.{% else %}Tout est à jour.{% endif %} Les alertes de votre bar, en un seul endroit.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters select { width: auto; max-width: 260px; border-radius: 999px; background-color: var(--surface); border: 1px solid var(--line); color: var(--ink); padding: .6rem 2.2rem .6rem 1rem; }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+
+  .feed { display: grid; gap: .6rem; max-width: 860px; }
+  .day { margin: 1.1rem 0 .15rem; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--muted); text-transform: capitalize; }
+  .day:first-child { margin-top: 0; }
+  .notif { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .9rem; align-items: flex-start; padding: 1rem 1.15rem; background: var(--surface); border: 1px solid var(--line);
+    border-left: 4px solid var(--line); border-radius: var(--radius); transition: border-color .25s, transform .25s var(--ease); }
+  .notif:hover { transform: translateY(-2px); }
+  .notif.lv-info { border-left-color: #4F8DF7; } .notif.lv-success { border-left-color: #3FAE6A; }
+  .notif.lv-warning { border-left-color: #E8991C; } .notif.lv-critical { border-left-color: #E5534B; }
+  .notif:not(.unread) { opacity: .68; }
+  .notif.unread { box-shadow: var(--shadow); }
+  .n-ico { width: 42px; height: 42px; display: grid; place-items: center; font-size: 1.35rem; border-radius: calc(var(--radius) * .7); background: var(--surface-2); position: relative; }
+  .notif.unread .n-ico::after { content: ""; position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+  .n-title { font-weight: 700; color: var(--ink); text-decoration: none; line-height: 1.3; }
+  .notif:not(.unread) .n-title { font-weight: 600; }
+  .n-title:hover { color: var(--accent); }
+  .n-body { margin: .25rem 0 0; color: var(--muted); font-size: .92rem; }
+  .n-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; margin-top: .5rem; color: var(--muted); font-size: .82rem; }
+  .n-acts { display: flex; gap: .3rem; }
+  .n-acts form { margin: 0; }
+  .n-acts button { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--muted); transition: background .2s, color .2s; }
+  .n-acts button:hover { background: var(--surface-2); color: var(--ink); }
+  .n-acts .del:hover { color: #E5534B; }
+
+  .new-banner { position: sticky; top: 4.5rem; z-index: 6; max-width: 860px; margin-bottom: 1rem; }
+  .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; max-width: 860px; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+  @media (max-width: 575.98px) { .notif { grid-template-columns: auto minmax(0, 1fr); } .n-acts { grid-column: 2; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'notifications:preferences' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-sliders"></i> Préférences</a>
+  <form method="post" action="{% url 'notifications:clear_read' %}" class="m-0" onsubmit="return confirm('Supprimer toutes les notifications déjà lues ?');">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-trash"></i> Vider les lues</button>
+  </form>
+  {% if unread %}
+  <form method="post" action="{% url 'notifications:mark_all_read' %}" class="m-0">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-all"></i> Tout marquer comme lu</button>
+  </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<button type="button" class="btn btn-primary new-banner w-100" id="newBanner" hidden onclick="location.reload()"><i class="bi bi-bell"></i> De nouvelles notifications sont arrivées. Cliquez pour actualiser.</button>
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  <select name="type" class="form-select" aria-label="Type de notification" onchange="this.form.submit()">
+    <option value="">Tous les types</option>
+    {% for t in types %}<option value="{{ t.0 }}" {% if type == t.0 %}selected{% endif %}>{{ t.1 }}</option>{% endfor %}
+  </select>
+  <select name="level" class="form-select" aria-label="Niveau d'importance" onchange="this.form.submit()">
+    <option value="">Toutes les importances</option>
+    {% for l in levels %}<option value="{{ l.0 }}" {% if level == l.0 %}selected{% endif %}>{{ l.1 }}</option>{% endfor %}
+  </select>
+  {% if type or level or state %}<a href="?" class="btn btn-link text-decoration-none">Réinitialiser</a>{% endif %}
+  <span class="ms-auto text-secondary small">{{ page.paginator.count }} notification{{ page.paginator.count|pluralize }}</span>
+</form>
+
+<div class="pills">
+  <a href="?type={{ type }}&level={{ level }}" class="{% if not state %}on{% endif %}">Toutes</a>
+  <a href="?state=non_lues&type={{ type }}&level={{ level }}" class="{% if state == 'non_lues' %}on{% endif %}">Non lues{% if unread %} ({{ unread }}){% endif %}</a>
+</div>
+
+{% if page.object_list %}
+<div class="feed">
+  {% for n in page.object_list %}
+    {% ifchanged n.created_at|date:"Y-m-d" %}<h2 class="day">{{ n.created_at|date:"l j F" }}</h2>{% endifchanged %}
+    {% with t=n.type %}
+    <article class="notif lv-{{ n.level|lower }} {% if not n.is_read %}unread{% endif %}">
+      <div class="n-ico" aria-hidden="true">
+        {% if t == "CHAT_MESSAGE" %}💬{% elif t == "TICKET_QR_NEW" %}📱{% elif t == "TICKET_PAID" or t == "PAYMENT_RECEIVED" %}💵{% elif t == "LOW_STOCK" or t == "STOCK_OUT" %}📉{% elif t == "LOSS_DECLARED" or t == "LOSS_REVIEWED" %}🍾{% elif t == "CREDIT_DUE" %}💳{% elif t == "SUPPLIER_DUE" or t == "PURCHASE_RECEIVED" %}🚚{% elif t == "INVENTORY_GAP" %}📋{% elif t == "CLOSING_REMINDER" %}🔒{% elif t == "RECOMMENDATION" %}💡{% elif t == "MEMBER_ADDED" %}👥{% elif t == "SUB_TRIAL_ENDING" or t == "SUB_EXPIRED" or t == "SUB_PAYMENT" %}⏳{% else %}📣{% endif %}
+      </div>
+      <div class="n-main">
+        <a href="{% url 'notifications:open' n.pk %}" class="n-title">{{ n.title }}</a>
+        {% if n.occurrences > 1 %}<span class="chip chip-neutral">× {{ n.occurrences }}</span>{% endif %}
+        {% if n.body %}<p class="n-body">{{ n.body }}</p>{% endif %}
+        <div class="n-meta">
+          <span class="chip chip-neutral">{{ n.get_type_display }}</span>
+          <span>Il y a {{ n.created_at|timesince }}</span>
+          {% if not n.bar_id %}<span><i class="bi bi-megaphone"></i> Annonce de la plateforme</span>{% endif %}
+        </div>
+      </div>
+      <div class="n-acts">
+        {% if not n.is_read %}
+        <form method="post" action="{% url 'notifications:read' n.pk %}">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" title="Marquer comme lue" aria-label="Marquer comme lue"><i class="bi bi-check2"></i></button>
+        </form>
+        {% endif %}
+        <form method="post" action="{% url 'notifications:delete' n.pk %}">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="del" title="Supprimer" aria-label="Supprimer"><i class="bi bi-trash"></i></button>
+        </form>
+      </div>
+    </article>
+    {% endwith %}
+  {% endfor %}
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🔔</div>
+  {% if type or level or state %}
+    <h2 class="h5">Aucune notification ne correspond</h2>
+    <a href="?" class="btn btn-outline-secondary rounded-pill">Voir toutes les notifications</a>
+  {% else %}
+    <h2 class="h5">Aucune notification pour le moment</h2>
+    <p class="text-secondary mb-0">Les stocks bas, commandes QR à valider, pertes et échéances apparaîtront ici.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* Vérifie toutes les 30 secondes s'il est arrivé de nouvelles notifications */
+  (function () {
+    var known = {{ unread }}, banner = document.getElementById('newBanner');
+    setInterval(function () {
+      if (document.hidden) return;
+      fetch("{% url 'notifications:api_summary' %}?limit=1", { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.unread > known) banner.hidden = false; })
+        .catch(function () {});
+    }, 30000);
+  })();
+</script>
+{% endblock %}

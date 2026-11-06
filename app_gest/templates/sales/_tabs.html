@@ -1,0 +1,6 @@
+{# Sections de la caisse. Usage : {% include "sales/_tabs.html" with active="tickets" %} #}
+<nav class="itabs" aria-label="Sections de la caisse">
+  <a href="{% url 'sales:ticket_list' %}" class="{% if active == 'tickets' %}on{% endif %}"><i class="bi bi-receipt"></i> Tickets</a>
+  <a href="{% url 'sales:customer_list' %}" class="{% if active == 'customers' %}on{% endif %}"><i class="bi bi-people"></i> Clients et crédits</a>
+  <a href="{% url 'sales:report' %}" class="{% if active == 'report' %}on{% endif %}"><i class="bi bi-bar-chart-line"></i> Rapport</a>
+</nav>

@@ -12,4 +12,5 @@ urlpatterns = [
     path("abonnement/", views.subscription, name="subscription"),
     path("b/", views.enter_code, name="enter_code"),
     path("b/<uuid:public_id>/", views.public_entry, name="public_entry"),
+    path("b/<uuid:public_id>/commander/", views.public_order, name="public_order"),
 ]

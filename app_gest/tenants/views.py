@@ -7,6 +7,11 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+import json
+import time
+
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_POST
 
 from accounts.decorators import bar_required
 from accounts.permissions import Perm
@@ -120,3 +125,38 @@ def subscription(request):
         "instructions": getattr(settings, "PAYMENT_INSTRUCTIONS",
                                 "Contactez l'administrateur pour connaître les numéros de paiement."),
     })
+
+
+@require_POST
+def public_order(request, public_id):
+    """Reçoit la commande du client (JSON) et répond en JSON, jamais par une redirection."""
+    from sales.services import SalesError, create_qr_order
+
+    bar = get_object_or_404(Bar, public_id=public_id, is_active=True)
+    try:
+        payload = json.loads(request.body or b"{}")
+    except ValueError:
+        return JsonResponse({"error": "Requête invalide."}, status=400)
+
+    now = time.time()                                       # anti-spam : 5 commandes / 10 min / client
+    recent = [t for t in request.session.get("qr_orders", []) if now - t < 600]
+    if len(recent) >= 5:
+        return JsonResponse({"error": "Trop de commandes en peu de temps. Patientez un moment."}, status=429)
+
+    identity = get_client_identity(request, bar)
+    name = getattr(identity, "name", "") or ""
+    try:
+        ticket = create_qr_order(bar, payload.get("lines"), payload.get("note", ""), name)
+    except SalesError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    request.session["qr_orders"] = recent + [now]
+
+    if apps.is_installed("notifications"):
+        from notifications.models import Notification, NotificationType
+        from notifications.services import notify_bar
+        notify_bar(bar, type=NotificationType.TICKET_QR_NEW, perm=Perm.POS_VALIDATE_QR,
+                   level=Notification.Level.WARNING, url=f"/sales/tickets/{ticket.pk}/",
+                   title=f"Commande QR {ticket.label} à valider",
+                   body=f"{ticket.total_fcfa} FCFA" + (f" · {ticket.note}" if ticket.note else ""),
+                   dedup_key=f"qr:{ticket.pk}")
+    return JsonResponse({"number": ticket.label, "total": ticket.total_fcfa})

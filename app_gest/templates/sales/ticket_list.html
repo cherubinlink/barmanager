@@ -1,0 +1,131 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Caisse{% endblock %}
+{% block page_title %}Caisse{% endblock %}
+{% block page_sub %}Les tickets du {{ day|date:"l j F Y" }}.{% endblock %}
+
+{% block extra_css %}{% include "sales/_styles.html" %}
+<style>
+  .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+  .tcard { display: flex; flex-direction: column; gap: .4rem; padding: var(--pad); text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+    border-left-width: 4px; border-radius: var(--radius); box-shadow: var(--shadow); transition: transform .25s var(--ease), border-color .25s; }
+  .tcard:hover { transform: translateY(-3px); color: var(--ink); border-color: var(--accent); }
+  .tcard.s-open { border-left-color: #E8991C; } .tcard.s-await { border-left-color: #D6456B; }
+  .tcard.s-paid { border-left-color: #3FAE6A; } .tcard.s-qr { border-left-color: #4F8DF7; }
+  .tcard.s-done, .tcard.s-cancel { border-left-color: var(--line); }
+  .tcard.s-cancel { opacity: .55; }
+  .t-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+  .t-name { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; line-height: 1.15; }
+  .t-sub { color: var(--muted); font-size: .86rem; }
+  .t-total { font-family: var(--font-display); font-weight: 800; font-size: calc(1.5rem * var(--title-scale)); color: var(--accent); margin-top: .25rem; }
+  .t-total small { font-family: var(--font-body); font-size: .5em; color: var(--muted); font-weight: 600; }
+  .t-pay { display: flex; justify-content: space-between; font-size: .86rem; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: .5rem; border-top: 1px dashed var(--line); }
+  .qr-alert { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; padding: 1rem 1.25rem; margin-bottom: 1.25rem; border-radius: var(--radius); background: rgba(79,141,247,.14); border: 1px solid #4F8DF7; }
+  .qr-alert i { font-size: 1.4rem; color: #4F8DF7; } .qr-alert .msg { flex: 1; min-width: 200px; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  {% if can_sell %}<a href="{% url 'sales:ticket_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouveau ticket</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+{% include "sales/_tabs.html" with active="tickets" %}
+
+{% if can_validate and pending_qr %}
+  <div class="qr-alert">
+    <i class="bi bi-qr-code-scan"></i>
+    <div class="msg"><b>{{ pending_qr }} commande{{ pending_qr|pluralize }} QR à valider.</b> Un client attend votre confirmation.</div>
+    <a href="?state=PENDING_VALIDATION" class="btn btn-primary btn-sm rounded-pill">Voir les commandes</a>
+  </div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Ventes de la journée</span>
+    <span class="value">{{ day_total|floatformat:"0g" }} <small>FCFA</small></span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Déjà encaissé</span>
+    <span class="value">{{ day_paid|floatformat:"0g" }} <small>FCFA</small></span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Reste à encaisser</span>
+    <span class="value js-diff" data-a="{% localize off %}{{ day_total }}{% endlocalize %}" data-b="{% localize off %}{{ day_paid }}{% endlocalize %}" data-unit="FCFA" data-plain="1">0</span>
+  </div></div>
+</div>
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  <div class="search-box"><i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Nom du client, ClientA3, table…" aria-label="Rechercher un ticket">
+  </div>
+  <label class="d-flex align-items-center gap-2 text-secondary small">Journée <input type="date" name="date" value="{{ day|date:'Y-m-d' }}" onchange="this.form.submit()"></label>
+  <a href="?" class="btn btn-link text-decoration-none">Aujourd'hui</a>
+  <span class="ms-auto text-secondary small">{{ page.paginator.count }} ticket{{ page.paginator.count|pluralize }}</span>
+</form>
+
+<div class="pills">
+  <a href="?date={{ day|date:'Y-m-d' }}&q={{ q|urlencode }}" class="{% if not state %}on{% endif %}">Tous</a>
+  {% for s in statuses %}<a href="?state={{ s.0 }}&date={{ day|date:'Y-m-d' }}&q={{ q|urlencode }}" class="{% if state == s.0 %}on{% endif %}">{{ s.1 }}</a>{% endfor %}
+</div>
+
+{% if page.object_list %}
+<div class="tgrid">
+  {% for t in page.object_list %}
+  {% with s=t.status|upper %}
+  <a href="{% url 'sales:ticket_detail' t.pk %}" class="tcard {% if s == 'OPEN' %}s-open{% elif s == 'AWAITING_PAYMENT' %}s-await{% elif s == 'PAID' %}s-paid{% elif s == 'PENDING_VALIDATION' %}s-qr{% elif s == 'CANCELLED' %}s-cancel{% else %}s-done{% endif %}">
+    <div class="t-top">
+      <div>
+        <div class="t-name">{{ t.display_name }}</div>
+        <div class="t-sub">{% if t.custom_name %}{{ t.label }}, {% endif %}{% if t.table_label %}table {{ t.table_label }}, {% endif %}{{ t.created_at|time:"H:i" }}</div>
+      </div>
+      {% include "sales/_status.html" with t=t %}
+    </div>
+    {% if t.customer %}<div class="t-sub"><i class="bi bi-person"></i> {{ t.customer }}</div>{% endif %}
+    <div class="t-total">{{ t.total_fcfa|floatformat:"0g" }} <small>FCFA</small></div>
+    {% if s != 'CANCELLED' and s != 'PENDING_VALIDATION' %}
+    <div class="t-pay">
+      <span>Payé {{ t.amount_paid_fcfa|floatformat:"0g" }}</span>
+      {% if t.balance_due_fcfa > 0 %}<b class="neg">Reste {{ t.balance_due_fcfa|floatformat:"0g" }}</b>{% else %}<b class="pos">Soldé</b>{% endif %}
+    </div>
+    {% endif %}
+    {% if t.source == 'QR' %}<span class="t-sub"><i class="bi bi-qr-code"></i> Commande QR</span>{% endif %}
+  </a>
+  {% endwith %}
+  {% endfor %}
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?date={{ day|date:'Y-m-d' }}&state={{ state }}&q={{ q|urlencode }}&page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?date={{ day|date:'Y-m-d' }}&state={{ state }}&q={{ q|urlencode }}&page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🧾</div>
+  {% if q or state %}
+    <h2 class="h5">Aucun ticket ne correspond</h2>
+    <a href="?date={{ day|date:'Y-m-d' }}" class="btn btn-outline-secondary rounded-pill">Voir tous les tickets du jour</a>
+  {% else %}
+    <h2 class="h5">Aucun ticket ce jour-là</h2>
+    <p class="text-secondary">Ouvrez un ticket dès que le client s'installe : toute l'équipe le voit tout de suite.</p>
+    {% if can_sell %}<a href="{% url 'sales:ticket_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouveau ticket</a>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.js-diff').forEach(function (c) {
+    var d = (parseFloat(c.dataset.a) || 0) - (parseFloat(c.dataset.b) || 0);
+    c.innerHTML = d.toLocaleString('fr-FR') + ' <small>' + (c.dataset.unit || '') + '</small>';
+    if (d > 0) c.style.color = '#E5534B';
+  });
+</script>
+{% endblock %}

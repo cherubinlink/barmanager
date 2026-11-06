@@ -1,0 +1,64 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Clients et crédits{% endblock %}
+{% block page_title %}Clients et crédits{% endblock %}
+{% block page_sub %}Les clients identifiés, leur plafond de crédit et ce qu'ils vous doivent.{% endblock %}
+
+{% block extra_css %}{% include "sales/_styles.html" %}
+<style>
+  .use { width: 90px; height: 6px; margin-top: .35rem; margin-left: auto; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .use span { display: block; height: 100%; max-width: 100%; background: var(--accent); }
+  .use.full span { background: #E5534B; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'sales:customer_create' %}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Nouveau client</a>
+{% endblock %}
+
+{% block content %}
+{% include "sales/_tabs.html" with active="customers" %}
+
+<form method="get" class="filters">
+  <div class="search-box"><i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Nom ou téléphone" aria-label="Rechercher un client">
+  </div>
+  <label class="d-flex align-items-center gap-2 text-secondary"><input type="checkbox" name="debt" value="1" class="form-check-input m-0" {% if only_debt %}checked{% endif %} onchange="this.form.submit()"> Avec une dette seulement</label>
+  {% if q or only_debt %}<a href="?" class="btn btn-link text-decoration-none">Réinitialiser</a>{% endif %}
+  <span class="ms-auto text-secondary small">{{ page.paginator.count }} client{{ page.paginator.count|pluralize }}</span>
+</form>
+
+<div class="card-bar flush">
+  <div class="table-wrap">
+    <table class="t">
+      <thead><tr><th>Client</th><th class="l">Téléphone</th><th>Plafond</th><th>Dette</th><th class="l">État</th></tr></thead>
+      <tbody>
+        {% for c in page.object_list %}
+        <tr>
+          <td><a href="{% url 'sales:customer_detail' c.pk %}"><span class="nm">{{ c.name }}</span>{% if c.notes %}<span class="sub">{{ c.notes }}</span>{% endif %}</a></td>
+          <td class="l muted">{% if c.phone %}{{ c.phone }}{% else %}—{% endif %}</td>
+          <td class="muted">{% if c.credit_limit_fcfa %}{{ c.credit_limit_fcfa|floatformat:"0g" }}{% else %}Pas de crédit{% endif %}</td>
+          <td>
+            {% if c.debt and c.debt > 0 %}
+              <b class="neg">{{ c.debt|floatformat:"0g" }} FCFA</b>
+              {% if c.credit_limit_fcfa %}{% widthratio c.debt c.credit_limit_fcfa 100 as pct %}<div class="use {% if c.debt >= c.credit_limit_fcfa %}full{% endif %}"><span style="width: {{ pct }}%"></span></div>{% endif %}
+            {% else %}<span class="pos">À jour</span>{% endif %}
+          </td>
+          <td class="l">{% if c.is_active %}<span class="chip chip-jus">Actif</span>{% else %}<span class="chip chip-neutral">Désactivé</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="empty-row">{% if q or only_debt %}Aucun client ne correspond.{% else %}Aucun client enregistré. Créez un client pour pouvoir lui vendre à crédit.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?q={{ q|urlencode }}{% if only_debt %}&debt=1{% endif %}&page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?q={{ q|urlencode }}{% if only_debt %}&debt=1{% endif %}&page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

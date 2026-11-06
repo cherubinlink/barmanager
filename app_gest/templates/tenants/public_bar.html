@@ -284,7 +284,7 @@
       if (!lines.length) return;
 
       btn.disabled = true;
-      fetch("", {
+      fetch("{% url 'tenants:public_order' public_bar.public_id %}", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -293,10 +293,11 @@
         body: JSON.stringify({ lines: lines, note: $('orderNote').value })
       })
       .then(function (res) {
-        return res.json().then(function (data) {
-          if (!res.ok) throw new Error(data.error || 'Une erreur est survenue.');
-          return data;
-        });
+        return res.json().catch(function () { throw new Error('Réponse inattendue du serveur.'); })
+          .then(function (data) {
+            if (!res.ok) throw new Error(data.error || 'Une erreur est survenue.');
+            return data;
+          });
       })
       .then(function (data) {
         ok.textContent = 'Commande n°' + data.number + ' envoyée ! Le serveur arrive.';

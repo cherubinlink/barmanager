@@ -1,0 +1,2 @@
+{# Pastille d'état d'un ticket. Usage : {% include "sales/_status.html" with t=ticket %} #}
+{% with s=t.status|upper %}<span class="chip {% if s == 'PENDING_VALIDATION' %}chip-soft{% elif s == 'OPEN' %}chip-biere{% elif s == 'AWAITING_PAYMENT' %}chip-alcool{% elif s == 'PAID' %}chip-jus{% else %}chip-neutral{% endif %}">{{ t.get_status_display }}</span>{% endwith %}

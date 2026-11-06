@@ -1,0 +1,183 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Préférences de notification{% endblock %}
+{% block page_title %}Préférences de notification{% endblock %}
+{% block page_sub %}Choisissez ce que vous voulez recevoir, et par quel moyen.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+  .card-bar.flush { padding: 0; overflow: hidden; }
+  .table-wrap { overflow-x: auto; }
+  .matrix { width: 100%; border-collapse: collapse; }
+  .matrix th { padding: .8rem .9rem; text-align: center; color: var(--muted); font-weight: 600; font-size: .82rem; background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .matrix th:first-child, .matrix td:first-child { text-align: left; position: sticky; left: 0; background: inherit; min-width: 210px; }
+  .matrix td:first-child { background: var(--surface); font-weight: 600; }
+  .matrix td { padding: .7rem .9rem; text-align: center; border-bottom: 1px dashed var(--line); }
+  .matrix tbody tr:last-child td { border-bottom: 0; }
+  .matrix tbody tr:hover td { background: var(--surface-2); }
+  .matrix input[type=checkbox] { width: 1.25rem; height: 1.25rem; accent-color: var(--accent); cursor: pointer; }
+  .col-btn { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: .78rem; display: block; margin: .15rem auto 0; cursor: pointer; padding: 0; }
+  .col-btn:hover { text-decoration: underline; }
+  .save-bar { position: sticky; bottom: 1rem; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.5rem; margin-top: 1.25rem; padding: 1rem 1.25rem;
+    background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: var(--shadow), 0 12px 30px -12px rgba(0,0,0,.35); }
+  .side-form { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .side-form select { flex: 1; min-width: 150px; }
+  .state-line { display: flex; align-items: center; gap: .6rem; margin-bottom: .75rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: #3FAE6A; } .dot.warn { background: #E8991C; }
+  @media (max-width: 575.98px) { .save-bar { bottom: 5.5rem; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'notifications:list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Notifications</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <div class="col-lg-8">
+    <form method="post" class="prefs-form" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-danger">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+
+      <div class="card-bar flush">
+        <div class="p-3 pb-2"><div class="blk-title mb-0"><h2>Que voulez-vous recevoir ?</h2></div></div>
+        <div class="table-wrap">
+          {% if rows %}
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>Notification</th>
+                {% for c in channels %}<th>{{ c.1 }}<button type="button" class="col-btn" data-col="{{ forloop.counter }}">Tout cocher</button></th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+              <tr>
+                <td>{% firstof row.label row.name row.title row.0 %}</td>
+                {% for f in row.fields %}<td>{{ f }}</td>{% endfor %}
+                {% for f in row.1 %}<td>{{ f }}</td>{% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="p-3">
+            {% for field in form %}
+              <div class="form-check mb-2">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="save-bar">
+        <span class="text-secondary">« Dans l'application » alimente la cloche. Les autres moyens dépendent de ce que votre administrateur a activé.</span>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Enregistrer mes préférences</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-4 d-grid gap-4 align-content-start">
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Sourdine</h2></div>
+      <div class="state-line">
+        <span class="dot {% if muted_until %}warn{% else %}on{% endif %}"></span>
+        <span>{% if muted_until %}En sourdine jusqu'au <b>{{ muted_until|date:"j F, H:i" }}</b>{% else %}Notifications actives{% endif %}</span>
+      </div>
+      <form method="post" action="{% url 'notifications:mute' %}" class="side-form prefs-side">
+        {% csrf_token %}
+        {{ mute_form.hours }}
+        <button type="submit" class="btn btn-outline-secondary rounded-pill">Appliquer</button>
+      </form>
+      {% if muted_until %}
+      <form method="post" action="{% url 'notifications:mute' %}" class="mt-2">
+        {% csrf_token %}<input type="hidden" name="hours" value="0">
+        <button type="submit" class="btn btn-link px-0">Réactiver maintenant</button>
+      </form>
+      {% endif %}
+      <p class="text-secondary small mt-3 mb-0">Pratique pendant votre repos : vous ne recevrez rien jusqu'à la fin de la sourdine.</p>
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Cet appareil</h2></div>
+      <div class="state-line"><span class="dot" id="pushDot"></span><span id="pushState">Vérification…</span></div>
+      <div class="d-grid gap-2">
+        <button type="button" class="btn btn-primary" id="pushOn" hidden><i class="bi bi-bell"></i> Activer les notifications sur cet appareil</button>
+        <button type="button" class="btn btn-outline-secondary" id="pushOff" hidden>Désactiver sur cet appareil</button>
+      </div>
+      <p class="text-secondary small mt-3 mb-0" id="pushNote">{{ push_devices }} appareil{{ push_devices|pluralize }} enregistré{{ push_devices|pluralize }} pour votre compte. Les notifications push arrivent même quand l'application est fermée.</p>
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Tester</h2></div>
+      <p class="text-secondary small">Envoyez-vous une notification pour vérifier que la cloche fonctionne.</p>
+      <form method="post" action="{% url 'notifications:send_test' %}" class="m-0">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-send"></i> Envoyer une notification de test</button></form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    // Cases à cocher et listes au style de l'application
+    document.querySelectorAll('.prefs-side select').forEach(function (el) { el.classList.add('form-select'); });
+
+    // « Tout cocher » par colonne
+    document.querySelectorAll('.col-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var n = parseInt(b.dataset.col, 10) + 1;
+        var boxes = document.querySelectorAll('.matrix tbody tr td:nth-child(' + n + ') input[type=checkbox]');
+        var all = Array.prototype.every.call(boxes, function (x) { return x.checked; });
+        boxes.forEach(function (x) { x.checked = !all; });
+        b.textContent = all ? 'Tout cocher' : 'Tout décocher';
+      });
+    });
+
+    // ---------- Notifications push sur cet appareil ----------
+    var on = document.getElementById('pushOn'), off = document.getElementById('pushOff'), dot = document.getElementById('pushDot'), state = document.getElementById('pushState');
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    function show(text, cls) { state.textContent = text; dot.className = 'dot ' + (cls || ''); }
+    function b64(s) { var p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, function (c) { return c.charCodeAt(0); }); }
+    function post(url, body) { return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify(body) }); }
+    function ready() { return Promise.race([navigator.serviceWorker.ready, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('sw')); }, 4000); })]); }
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      show('Ce navigateur ne prend pas en charge les notifications push.'); return;
+    }
+    if (Notification.permission === 'denied') { show('Notifications bloquées dans les réglages du navigateur.', 'warn'); return; }
+
+    function refresh() {
+      ready().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+        on.hidden = !!sub; off.hidden = !sub;
+        show(sub ? 'Activées sur cet appareil' : 'Désactivées sur cet appareil', sub ? 'on' : '');
+      }).catch(function () { show("L'application n'est pas encore installée comme PWA sur cet appareil.", 'warn'); });
+    }
+
+    on.addEventListener('click', function () {
+      fetch("{% url 'notifications:push_config' %}", { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (cfg) {
+        if (!cfg.publicKey) { show("Les notifications push ne sont pas encore configurées sur le serveur.", 'warn'); return; }
+        return Notification.requestPermission().then(function (perm) {
+          if (perm !== 'granted') { show('Autorisation refusée.', 'warn'); return; }
+          return ready().then(function (reg) { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(cfg.publicKey) }); })
+            .then(function (sub) { return post("{% url 'notifications:push_subscribe' %}", sub.toJSON()); })
+            .then(refresh);
+        });
+      }).catch(function () { show("Impossible d'activer les notifications sur cet appareil.", 'warn'); });
+    });
+
+    off.addEventListener('click', function () {
+      ready().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+        if (!sub) return;
+        var endpoint = sub.endpoint;
+        return sub.unsubscribe().then(function () { return post("{% url 'notifications:push_unsubscribe' %}", { endpoint: endpoint }); });
+      }).then(refresh).catch(function () {});
+    });
+    refresh();
+  })();
+</script>
+{% endblock %}

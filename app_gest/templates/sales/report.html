@@ -1,0 +1,93 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Rapport de ventes{% endblock %}
+{% block page_title %}Rapport de ventes{% endblock %}
+{% block page_sub %}{% if start == end %}{{ start|date:"l j F Y" }}{% else %}Du {{ start|date:"j F Y" }} au {{ end|date:"j F Y" }}{% endif %} : ce qui s'est vendu, ce que ça rapporte et comment les clients ont payé.{% endblock %}
+
+{% block extra_css %}{% include "sales/_styles.html" %}
+<style>
+  .share { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: .4rem; }
+  .share span { display: block; height: 100%; background: var(--accent); }
+  .m-row { padding: .7rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .m-row:last-child { border-bottom: 0; }
+  .m-row .top { display: flex; justify-content: space-between; gap: 1rem; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <button type="button" class="btn btn-outline-secondary rounded-pill" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer</button>
+{% endblock %}
+
+{% block content %}
+{% include "sales/_tabs.html" with active="report" %}
+
+<form method="get" class="filters">
+  <select name="period" class="form-select" aria-label="Période" onchange="this.form.submit()">
+    {% for p in periods %}<option value="{{ p.0 }}" {% if period == p.0 %}selected{% endif %}>{{ p.1 }}</option>{% endfor %}
+  </select>
+  <label class="d-flex align-items-center gap-2 text-secondary small">Date de référence <input type="date" name="date" value="{{ request.GET.date }}" onchange="this.form.submit()"></label>
+  {% if request.GET.period or request.GET.date %}<a href="?" class="btn btn-link text-decoration-none">Aujourd'hui</a>{% endif %}
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Chiffre d'affaires</span>
+    <span class="value">{{ totals.net|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{% if totals.discounts %}{{ totals.gross|floatformat:"0g" }} brut, {{ totals.discounts|floatformat:"0g" }} de remises{% else %}aucune remise{% endif %}</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Coût des produits</span>
+    <span class="value">{{ totals.cogs|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">au prix d'achat réel (FIFO)</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Marge</span>
+    <span class="value {% if totals.margin < 0 %}neg{% endif %}" style="color:{% if totals.margin < 0 %}#E5534B{% else %}#3FAE6A{% endif %}">{{ totals.margin|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{% if totals.net %}{% widthratio totals.margin totals.net 100 %} % du chiffre d'affaires{% endif %}</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Encaissé</span>
+    <span class="value">{{ totals.collected|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">remboursements déduits</span>
+  </div></div>
+</div>
+
+<div class="row g-4">
+
+  <div class="col-lg-8">
+    <div class="card-bar flush">
+      <div class="table-wrap">
+        <table class="t">
+          <thead><tr><th>Produit</th><th>Quantité</th><th>Chiffre d'affaires</th><th>Coût</th><th>Marge</th><th>%</th></tr></thead>
+          <tbody>
+            {% for r in rows %}
+            <tr>
+              <td><span class="nm">{{ r.product_bar__product__name }}</span><span class="sub">{{ r.product_bar__product__category__name }}</span></td>
+              <td>{{ r.qty|floatformat:"-3g" }}</td>
+              <td>{{ r.revenue|floatformat:"0g" }}</td>
+              <td class="muted">{{ r.cogs|floatformat:"0g" }}</td>
+              <td><b class="{% if r.margin < 0 %}neg{% else %}pos{% endif %}">{{ r.margin|floatformat:"0g" }}</b></td>
+              <td class="muted">{% if r.revenue %}{% widthratio r.margin r.revenue 100 %}{% else %}0{% endif %} %</td>
+            </tr>
+            {% empty %}<tr><td colspan="6" class="empty-row">Aucune vente sur cette période.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="text-secondary small mt-3">Les quantités sont en unités de base (bouteilles, canettes). Les tickets annulés et les commandes QR non validées ne sont pas comptés.</p>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card-bar">
+      <div class="blk-title"><h2>Encaissé par mode</h2></div>
+      {% for m in by_method %}
+        <div class="m-row">
+          <div class="top"><span>{{ m.label }}</span><b>{{ m.total|floatformat:"0g" }} FCFA</b></div>
+          {% if totals.collected %}{% widthratio m.total totals.collected 100 as share %}<div class="share"><span style="width: {{ share }}%"></span></div>{% endif %}
+        </div>
+      {% empty %}<p class="text-secondary mb-0">Aucun encaissement sur cette période.</p>{% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

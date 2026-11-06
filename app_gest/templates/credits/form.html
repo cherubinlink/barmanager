@@ -1,0 +1,100 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_sub %}{{ subtitle }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 460px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .card-bar.flush { padding: 0; overflow: hidden; }
+  .table-wrap { overflow-x: auto; }
+  .t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .t th { padding: .7rem .9rem; text-align: right; color: var(--muted); font-weight: 600; font-size: .8rem; white-space: nowrap; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .t td { padding: .7rem .9rem; text-align: right; vertical-align: middle; border-bottom: 1px dashed var(--line); }
+  .t th:first-child, .t td:first-child, .t .l { text-align: left; }
+  .t tbody tr:last-child td { border-bottom: 0; }
+  .t tbody tr:hover { background: var(--surface-2); }
+  .t .nm { font-weight: 600; }
+  .t .sub { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
+  .t a { color: inherit; text-decoration: none; } .t a:hover { color: var(--accent); }
+  .pos { color: #3FAE6A; } .neg { color: #E5534B; } .muted { color: var(--muted); }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+  .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+  .empty-row { color: var(--muted); text-align: center !important; padding: 1.5rem !important; }
+  .field label { font-weight: 600; margin-bottom: .35rem; display: block; }
+  .field .help { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .field .err { color: #E5534B; font-size: .85rem; margin-top: .3rem; }
+  .field .form-control, .field .form-select { padding: .7rem .9rem; }
+  .field .input-group-text { background: var(--surface-2); border-color: var(--line); color: var(--muted); font-weight: 600; font-size: .85rem; }
+  .modal { --bs-modal-bg: var(--surface); --bs-modal-color: var(--ink); --bs-modal-border-color: var(--line); --bs-modal-border-radius: var(--radius); --bs-modal-header-border-color: var(--line); --bs-modal-footer-border-color: var(--line); }
+  [data-bs-theme="dark"] .modal .btn-close { filter: invert(1); }
+
+  .form-shell { max-width: 700px; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .field { grid-column: span 1; } .field.full { grid-column: span 2; }
+  @media (max-width: 575.98px) { .field { grid-column: span 2; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if back_args %}{% url back_url back_args.0 as back %}{% else %}{% url back_url as back %}{% endif %}
+<div class="form-shell">
+  <div class="card-bar">
+    <form method="post" class="cr-form" novalidate>
+      {% csrf_token %}
+      {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger" role="alert">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+      {% endif %}
+
+      <div class="fields">
+        {% for field in form.visible_fields %}
+          <div class="field {% if field.name == 'customer' or field.name == 'note' %}full{% endif %} {% if field.errors %}has-error{% endif %}">
+            <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="text-secondary fw-normal">(facultatif)</span>{% endif %}</label>
+            {{ field }}
+            {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+            {% if field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <button type="submit" class="btn btn-primary btn-lg">{{ submit|default:"Enregistrer" }}</button>
+        {% if back %}<a href="{{ back }}" class="btn btn-outline-secondary btn-lg rounded-pill">Annuler</a>{% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.querySelector('.cr-form');
+    if (!form) return;
+    form.querySelectorAll('input, select, textarea').forEach(function (el) {
+      if (el.type === 'hidden') return;
+      el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+      if (el.closest('.has-error')) el.classList.add('is-invalid');
+      if (el.name && /_fcfa$/.test(el.name)) {
+        var g = document.createElement('div'); g.className = 'input-group';
+        el.parentNode.insertBefore(g, el); g.appendChild(el);
+        var s = document.createElement('span'); s.className = 'input-group-text'; s.textContent = 'FCFA'; g.appendChild(s);
+      }
+    });
+    var first = form.querySelector('.is-invalid') || form.querySelector('select, input:not([type=hidden])');
+    if (first) first.focus();
+  })();
+</script>
+{% endblock %}

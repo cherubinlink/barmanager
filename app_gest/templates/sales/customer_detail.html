@@ -1,0 +1,103 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}{{ customer.name }}{% endblock %}
+{% block page_title %}{{ customer.name }}{% endblock %}
+{% block page_sub %}{% if customer.phone %}{{ customer.phone }}{% else %}Aucun téléphone renseigné{% endif %}{% if customer.notes %}. {{ customer.notes }}{% endif %}{% endblock %}
+
+{% block extra_css %}{% include "sales/_styles.html" %}
+<style>
+  .big-debt { font-family: var(--font-display); font-weight: 800; font-size: calc(2.2rem * var(--title-scale)); line-height: 1; }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li a { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .4rem 1rem; padding: .8rem 0; border-bottom: 1px dashed var(--line); text-decoration: none; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .rows li:last-child a { border-bottom: 0; }
+  .rows li a:hover .nm { color: var(--accent); }
+  .rows .nm { font-weight: 700; } .rows .sub { display: block; color: var(--muted); font-size: .84rem; font-weight: 400; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'sales:customer_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Clients</a>
+  {% if customer.phone %}<a href="tel:{{ customer.phone }}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-telephone"></i> Appeler</a>{% endif %}
+  <a href="{% url 'sales:customer_edit' customer.pk %}" class="btn btn-primary"><i class="bi bi-pencil"></i> Modifier</a>
+{% endblock %}
+
+{% block content %}
+{% if not customer.is_active %}<div class="alert alert-secondary"><i class="bi bi-eye-slash"></i> Ce client est désactivé : il n'apparaît plus lors de l'ouverture d'un ticket.</div>{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card-bar stat">
+    <span class="label">Dette actuelle</span>
+    <span class="big-debt {% if debt > 0 %}neg{% else %}pos{% endif %}">{% if debt > 0 %}{{ debt|floatformat:"0g" }} <small style="font-size:.4em;color:var(--muted)">FCFA</small>{% else %}À jour{% endif %}</span>
+    <span class="label">{{ unpaid|length }} ticket{{ unpaid|length|pluralize }} impayé{{ unpaid|length|pluralize }}</span>
+  </div></div>
+  <div class="col-md-4"><div class="card-bar stat">
+    <span class="label">Plafond de crédit</span>
+    <span class="value">{% if customer.credit_limit_fcfa %}{{ customer.credit_limit_fcfa|floatformat:"0g" }} <small>FCFA</small>{% else %}Aucun{% endif %}</span>
+    <span class="label">{% if not customer.credit_limit_fcfa %}Vente à crédit impossible{% endif %}</span>
+  </div></div>
+  <div class="col-md-4"><div class="card-bar stat">
+    <span class="label">Crédit encore disponible</span>
+    <span class="value js-diff" data-a="{% localize off %}{{ customer.credit_limit_fcfa }}{% endlocalize %}" data-b="{% localize off %}{{ debt }}{% endlocalize %}" data-unit="FCFA">—</span>
+  </div></div>
+</div>
+
+<div class="row g-4">
+
+  <div class="col-lg-5">
+    <div class="card-bar">
+      <div class="blk-title"><h2>Tickets à payer</h2></div>
+      <ul class="rows">
+        {% for t in unpaid %}
+        <li><a href="{% url 'sales:ticket_detail' t.pk %}">
+          <span><span class="nm">{{ t.display_name }}</span><span class="sub">{{ t.business_date|date:"j F Y" }}</span></span>
+          <b class="neg">{{ t.balance_due_fcfa|floatformat:"0g" }} FCFA</b>
+        </a></li>
+        {% empty %}<li class="text-secondary py-2">Aucun ticket impayé.</li>{% endfor %}
+      </ul>
+      <p class="text-secondary small mt-3 mb-0">Pour encaisser un paiement, ouvrez le ticket concerné.</p>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card-bar flush">
+      <div class="p-3 pb-2"><div class="blk-title mb-0"><h2>Historique</h2></div></div>
+      <div class="table-wrap">
+        <table class="t">
+          <thead><tr><th>Ticket</th><th class="l">État</th><th>Total</th><th>Payé</th></tr></thead>
+          <tbody>
+            {% for t in page.object_list %}
+            <tr>
+              <td><a href="{% url 'sales:ticket_detail' t.pk %}"><span class="nm">{{ t.display_name }}</span><span class="sub">{{ t.business_date|date:"j F Y" }}</span></a></td>
+              <td class="l">{% include "sales/_status.html" with t=t %}</td>
+              <td>{{ t.total_fcfa|floatformat:"0g" }}</td>
+              <td class="muted">{{ t.amount_paid_fcfa|floatformat:"0g" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="4" class="empty-row">Aucun ticket pour ce client.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% if page.paginator.num_pages > 1 %}
+    <nav class="pager" aria-label="Pagination">
+      {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+      <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.js-diff').forEach(function (c) {
+    var limit = parseFloat(c.dataset.a) || 0, debt = parseFloat(c.dataset.b) || 0;
+    if (!limit) { c.textContent = '—'; return; }
+    var left = limit - debt;
+    c.innerHTML = Math.max(left, 0).toLocaleString('fr-FR') + ' <small>FCFA</small>';
+    if (left <= 0) c.style.color = '#E5534B';
+  });
+</script>
+{% endblock %}

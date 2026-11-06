@@ -1,0 +1,344 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}{{ ticket.display_name }}{% endblock %}
+{% block page_title %}{{ ticket.display_name }}{% endblock %}
+{% block page_sub %}{% if ticket.custom_name %}{{ ticket.label }}, {% endif %}{% if ticket.table_label %}table {{ ticket.table_label }}, {% endif %}ouvert à {{ ticket.created_at|time:"H:i" }}{% if ticket.opened_by %} par {% firstof ticket.opened_by.first_name ticket.opened_by.get_username %}{% endif %}, journée du {{ ticket.business_date|date:"j F Y" }}.{% endblock %}
+
+{% block extra_css %}{% include "sales/_styles.html" %}
+<style>
+  /* Produits à toucher */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; max-height: 290px; overflow-y: auto; padding: .15rem; }
+  .tile { display: flex; flex-direction: column; justify-content: space-between; gap: .35rem; min-height: 78px; padding: .7rem .8rem; text-align: left; color: var(--ink); background: var(--surface-2);
+    border: 1px solid transparent; border-radius: calc(var(--radius) * .7); transition: transform .15s var(--ease), border-color .2s, background .2s; cursor: pointer; }
+  .tile:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .tile:active { transform: scale(.96); }
+  .tile .t-n { font-weight: 600; font-size: .9rem; line-height: 1.2; }
+  .tile .t-p { font-family: var(--font-display); font-weight: 800; color: var(--accent); font-size: .95rem; }
+  .tiles.busy { pointer-events: none; opacity: .5; }
+  .tile-search { position: relative; min-width: 180px; }
+  .tile-search i { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .9rem; }
+  .tile-search input { width: 100%; padding: .45rem .9rem .45rem 2.2rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: .9rem; }
+  details.precise summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: .92rem; }
+  details.precise summary:hover { color: var(--accent); }
+
+  /* Addition */
+  .voided td { text-decoration: line-through; opacity: .5; }
+  .voided td:last-child { text-decoration: none; opacity: 1; }
+  .money { display: grid; gap: .6rem; font-variant-numeric: tabular-nums; }
+  .money .m { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+  .money .m span { color: var(--muted); }
+  .money .total { padding-top: .75rem; border-top: 2px dashed var(--line); }
+  .money .total b { font-family: var(--font-display); font-size: calc(2rem * var(--title-scale)); color: var(--accent); line-height: 1; }
+  .money .rest b { font-family: var(--font-display); font-size: 1.3rem; }
+  .actions { display: grid; gap: .6rem; }
+  .actions form { margin: 0; }
+  .actions .btn { width: 100%; }
+  .pay-row { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .65rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .pay-row:last-child { border-bottom: 0; }
+  .pay-row .sub { display: block; color: var(--muted); font-size: .82rem; }
+  .info-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .65rem; font-size: .92rem; }
+  .info-list li { display: flex; justify-content: space-between; gap: 1rem; }
+  .info-list li span { color: var(--muted); } .info-list li b { font-weight: 600; text-align: right; }
+  .modal { --bs-modal-bg: var(--surface); --bs-modal-color: var(--ink); --bs-modal-border-color: var(--line); --bs-modal-border-radius: var(--radius);
+    --bs-modal-header-border-color: var(--line); --bs-modal-footer-border-color: var(--line); }
+  .modal .btn-close { filter: var(--bs-btn-close-white-filter, none); }
+  [data-bs-theme="dark"] .modal .btn-close { filter: invert(1); }
+  @media print {
+    .no-print, .tiles, details.precise, .actions, .modal { display: none !important; }
+  }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'sales:ticket_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Tickets</a>
+  <button type="button" class="btn btn-outline-secondary rounded-pill" onclick="window.print()"><i class="bi bi-printer"></i> Imprimer</button>
+{% endblock %}
+
+{% block content %}
+{% with s=ticket.status|upper %}
+
+{% if s == 'PENDING_VALIDATION' %}
+  <div class="alert alert-info" role="status"><i class="bi bi-qr-code-scan"></i> Commande passée par le client avec son téléphone. Elle n'est pas comptée tant que vous ne l'avez pas validée : le stock se met à jour à la validation.</div>
+{% elif s == 'AWAITING_PAYMENT' %}
+  <div class="alert alert-warning" role="status"><i class="bi bi-hourglass-split"></i> Facture en attente de paiement : le client a fini de consommer.</div>
+{% elif s == 'CANCELLED' %}
+  <div class="alert alert-secondary" role="status"><i class="bi bi-x-circle"></i> Ticket annulé{% if ticket.cancel_reason %} : {{ ticket.cancel_reason }}{% endif %}. Le stock a été remis.</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <div class="col-lg-7 d-grid gap-4 align-content-start">
+
+    {# ===== Ajouter des produits ===== #}
+    {% if line_form %}
+    <div class="card-bar no-print">
+      <div class="blk-title">
+        <h2>Ajouter</h2>
+        <div class="tile-search"><i class="bi bi-search"></i><input type="search" id="tileSearch" placeholder="Chercher un produit" aria-label="Chercher un produit"></div>
+      </div>
+      <div class="tiles" id="tiles">
+        {% for pb in line_form.fields.product_bar.queryset %}
+          <button type="button" class="tile" data-id="{{ pb.pk }}" data-name="{{ pb.product|lower }}">
+            <span class="t-n">{{ pb.product }}</span><span class="t-p">{{ pb.sale_price_fcfa|floatformat:"0g" }} FCFA</span>
+          </button>
+        {% empty %}<p class="text-secondary mb-0">Aucun produit en vente. Ajoutez des produits à votre catalogue.</p>{% endfor %}
+      </div>
+      <p class="text-secondary small mt-2 mb-0">Touchez un produit pour ajouter une unité.</p>
+
+      <details class="precise mt-3">
+        <summary>Ajout précis : verre, mesure, plusieurs unités</summary>
+        <form method="post" action="{% url 'sales:line_add' ticket.pk %}" id="lineForm" class="pos-form mt-3">
+          {% csrf_token %}
+          <div class="fields">
+            <div class="field full"><label for="{{ line_form.product_bar.id_for_label }}">{{ line_form.product_bar.label }}</label>{{ line_form.product_bar }}</div>
+            <div class="field"><label for="{{ line_form.serving.id_for_label }}">{{ line_form.serving.label }}</label>{{ line_form.serving }}</div>
+            <div class="field"><label for="{{ line_form.quantity.id_for_label }}">{{ line_form.quantity.label }}</label>{{ line_form.quantity }}</div>
+          </div>
+          <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-plus-lg"></i> Ajouter au ticket</button>
+        </form>
+      </details>
+    </div>
+    {% endif %}
+
+    {# ===== Consommation ===== #}
+    <div class="card-bar flush">
+      <div class="p-3 pb-2"><div class="blk-title mb-0"><h2>Consommation</h2></div></div>
+      <div class="table-wrap">
+        <table class="t">
+          <thead><tr><th>Produit</th><th>Qté</th><th>Prix</th><th>Total</th>{% if can_costs %}<th>Coût</th>{% endif %}{% if editable and can_void %}<th></th>{% endif %}</tr></thead>
+          <tbody>
+            {% for l in lines %}
+            <tr class="{% if l.is_void %}voided{% endif %}">
+              <td><span class="nm">{{ l.product_bar.product }}</span><span class="sub">{% if l.serving %}{{ l.serving.name }}{% else %}Unité{% endif %}{% if l.is_void %}, annulée : {{ l.void_reason }}{% endif %}</span></td>
+              <td>{{ l.quantity|floatformat:"-2g" }}</td>
+              <td class="muted">{{ l.unit_price_fcfa|floatformat:"0g" }}</td>
+              <td><b>{{ l.line_total_fcfa|floatformat:"0g" }}</b></td>
+              {% if can_costs %}<td class="muted">{{ l.cogs_fcfa|floatformat:"0g" }}</td>{% endif %}
+              {% if editable and can_void %}
+              <td>{% if not l.is_void %}<button type="button" class="btn btn-sm btn-outline-danger rounded-pill no-print" data-bs-toggle="modal" data-bs-target="#voidModal" data-action="{% url 'sales:line_void' ticket.pk l.pk %}" data-name="{{ l.product_bar.product }}" aria-label="Annuler la ligne"><i class="bi bi-x-lg"></i></button>{% endif %}</td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="empty-row">Aucun produit sur ce ticket.{% if line_form %} Touchez un produit ci-dessus pour l'ajouter.{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5 d-grid gap-4 align-content-start">
+
+    {# ===== Addition ===== #}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Addition</h2>{% include "sales/_status.html" with t=ticket %}</div>
+      <div class="money">
+        {% if ticket.discount_fcfa %}
+          <div class="m"><span>Sous-total</span><b>{{ ticket.subtotal_fcfa|floatformat:"0g" }} FCFA</b></div>
+          <div class="m"><span>Remise</span><b class="neg">− {{ ticket.discount_fcfa|floatformat:"0g" }} FCFA</b></div>
+        {% endif %}
+        <div class="m total"><span>Total</span><b>{{ ticket.total_fcfa|floatformat:"0g" }} <small style="font-size:.4em;color:var(--muted)">FCFA</small></b></div>
+        <div class="m"><span>Déjà payé</span><b>{{ ticket.amount_paid_fcfa|floatformat:"0g" }} FCFA</b></div>
+        <div class="m rest"><span>Reste à payer</span><b class="{% if ticket.balance_due_fcfa > 0 and s != 'CANCELLED' and s != 'PENDING_VALIDATION' %}neg{% else %}pos{% endif %}">{{ ticket.balance_due_fcfa|floatformat:"0g" }} FCFA</b></div>
+        {% if can_costs and cogs is not None %}
+          <div class="m"><span>Coût des produits</span><b>{{ cogs|floatformat:"0g" }} FCFA</b></div>
+          <div class="m"><span>Marge</span><b class="js-diff" data-a="{% localize off %}{{ ticket.total_fcfa }}{% endlocalize %}" data-b="{% localize off %}{{ cogs }}{% endlocalize %}" data-unit="FCFA">—</b></div>
+        {% endif %}
+      </div>
+
+      {% if editable and can_discount %}
+      <form method="post" action="{% url 'sales:ticket_discount' ticket.pk %}" class="pos-form mt-3 pt-3 no-print" style="border-top:1px dashed var(--line)">
+        {% csrf_token %}
+        <label class="fw-semibold mb-1" for="{{ discount_form.discount_fcfa.id_for_label }}">Remise</label>
+        <div class="d-flex gap-2">{{ discount_form.discount_fcfa }}<button type="submit" class="btn btn-outline-secondary rounded-pill">Appliquer</button></div>
+      </form>
+      {% endif %}
+    </div>
+
+    {# ===== Actions ===== #}
+    <div class="card-bar no-print">
+      <div class="blk-title"><h2>Actions</h2></div>
+      <div class="actions">
+        {% if s == 'PENDING_VALIDATION' %}
+          {% if can_validate %}
+            <form method="post" action="{% url 'sales:qr_validate' ticket.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-check-lg"></i> Valider la commande</button></form>
+            <form method="post" action="{% url 'sales:qr_reject' ticket.pk %}" onsubmit="return confirm('Rejeter cette commande ?');">{% csrf_token %}<button type="submit" class="btn btn-outline-danger"><i class="bi bi-x-lg"></i> Rejeter</button></form>
+          {% else %}<p class="text-secondary mb-0">Un caissier ou une vendeuse doit valider cette commande.</p>{% endif %}
+        {% else %}
+          {% if s == 'OPEN' and can_sell %}
+            <form method="post" action="{% url 'sales:ticket_invoice' ticket.pk %}">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary"><i class="bi bi-receipt"></i> Le client a fini : demander le paiement</button></form>
+          {% endif %}
+          {% if editable and can_finalize %}
+            <form method="post" action="{% url 'sales:ticket_finalize' ticket.pk %}" onsubmit="return confirm('Finaliser ce ticket ?{% if ticket.balance_due_fcfa > 0 %} Le reste à payer sera mis au compte du client.{% endif %}');">
+              {% csrf_token %}<button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-check2-all"></i> Finaliser le ticket</button>
+            </form>
+          {% endif %}
+          {% if editable and can_void %}
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal"><i class="bi bi-x-circle"></i> Annuler le ticket</button>
+          {% endif %}
+          {% if can_void and ticket.amount_paid_fcfa > 0 and s != 'CANCELLED' %}
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#refundModal"><i class="bi bi-arrow-counterclockwise"></i> Rembourser</button>
+          {% endif %}
+          {% if s == 'FINALIZED' and ticket.balance_due_fcfa <= 0 %}<p class="text-secondary mb-0"><i class="bi bi-check-circle"></i> Ticket finalisé et soldé.</p>{% endif %}
+          {% if s == 'CANCELLED' %}<p class="text-secondary mb-0">Ce ticket est annulé : aucune action possible.</p>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    {# ===== Encaisser ===== #}
+    {% if can_finalize and s != 'CANCELLED' and s != 'PENDING_VALIDATION' and ticket.balance_due_fcfa > 0 %}
+    <div class="card-bar no-print">
+      <div class="blk-title"><h2>Encaisser</h2></div>
+      <form method="post" action="{% url 'sales:payment_add' ticket.pk %}" class="pos-form">
+        {% csrf_token %}
+        <div class="d-grid gap-3">
+          <div class="field"><label for="{{ payment_form.amount_fcfa.id_for_label }}">{{ payment_form.amount_fcfa.label }}</label>{{ payment_form.amount_fcfa }}
+            <button type="button" class="btn btn-sm btn-link px-0 mt-1" id="fillBalance" data-amount="{% localize off %}{{ ticket.balance_due_fcfa }}{% endlocalize %}">Tout le reste ({{ ticket.balance_due_fcfa|floatformat:"0g" }} FCFA)</button></div>
+          <div class="field"><label for="{{ payment_form.method.id_for_label }}">{{ payment_form.method.label }}</label>{{ payment_form.method }}</div>
+          <div class="field"><label for="{{ payment_form.reference.id_for_label }}">{{ payment_form.reference.label }} <span class="text-secondary fw-normal">(facultatif)</span></label>{{ payment_form.reference }}</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg w-100 mt-3"><i class="bi bi-cash-coin"></i> Enregistrer le paiement</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {# ===== Paiements ===== #}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Paiements</h2></div>
+      {% for p in payments %}
+        <div class="pay-row">
+          <div>
+            <b class="{% if p.kind == 'REFUND' %}neg{% endif %}">{% if p.kind == 'REFUND' %}− {% endif %}{{ p.amount_fcfa|floatformat:"0g" }} FCFA</b>
+            <span class="sub">{{ p.get_kind_display }}, {{ p.get_method_display }}, {{ p.paid_at|date:"H:i" }}{% if p.reference %}, réf. {{ p.reference }}{% endif %}{% if p.justification %}, {{ p.justification }}{% endif %}{% if p.received_by %}, par {% firstof p.received_by.first_name p.received_by.get_username %}{% endif %}</span>
+          </div>
+          <span class="chip {% if p.kind == 'REFUND' %}chip-alcool{% else %}chip-jus{% endif %}">{{ p.get_kind_display }}</span>
+        </div>
+      {% empty %}<p class="text-secondary mb-0">Aucun paiement enregistré.</p>{% endfor %}
+    </div>
+
+    {# ===== Informations ===== #}
+    <div class="card-bar">
+      <div class="blk-title"><h2>Informations</h2></div>
+      <ul class="info-list">
+        <li><span>Paiement prévu</span><b>{{ ticket.get_payment_timing_display }}</b></li>
+        <li><span>Origine</span><b>{{ ticket.get_source_display }}</b></li>
+        {% if ticket.customer %}<li><span>Client</span><b>{% if customer_debt is not None %}<a href="{% url 'sales:customer_detail' ticket.customer.pk %}">{{ ticket.customer }}</a>{% else %}{{ ticket.customer }}{% endif %}</b></li>{% endif %}
+        {% if customer_debt is not None and ticket.customer %}<li><span>Dette du client</span><b class="{% if customer_debt > 0 %}neg{% endif %}">{{ customer_debt|floatformat:"0g" }} FCFA</b></li>{% endif %}
+        {% if ticket.finalized_at %}<li><span>Finalisé le</span><b>{{ ticket.finalized_at|date:"j F, H:i" }}</b></li>{% endif %}
+      </ul>
+      {% if ticket.note %}<p class="text-secondary small mt-3 mb-0">{{ ticket.note }}</p>{% endif %}
+    </div>
+  </div>
+</div>
+
+{# ===== Fenêtres de confirmation ===== #}
+<div class="modal fade" id="voidModal" tabindex="-1" aria-labelledby="voidTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" action="#" class="pos-form" id="voidForm">
+      {% csrf_token %}
+      <div class="modal-header"><h2 class="modal-title h5" id="voidTitle">Annuler la ligne <span id="voidName"></span></h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body"><label class="fw-semibold mb-1" for="{{ void_form.reason.id_for_label }}">{{ void_form.reason.label }}</label>{{ void_form.reason }}<p class="text-secondary small mt-2 mb-0">Le produit est remis en stock.</p></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Retour</button><button type="submit" class="btn btn-danger rounded-pill">Annuler la ligne</button></div>
+    </form>
+  </div></div>
+</div>
+
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" action="{% url 'sales:ticket_cancel' ticket.pk %}" class="pos-form">
+      {% csrf_token %}
+      <div class="modal-header"><h2 class="modal-title h5" id="cancelTitle">Annuler le ticket {{ ticket.display_name }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body"><label class="fw-semibold mb-1" for="{{ cancel_form.reason.id_for_label }}">{{ cancel_form.reason.label }}</label>{{ cancel_form.reason }}<p class="text-secondary small mt-2 mb-0">Tous les produits sont remis en stock. Si le client a déjà payé, remboursez d'abord.</p></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Retour</button><button type="submit" class="btn btn-danger rounded-pill">Annuler le ticket</button></div>
+    </form>
+  </div></div>
+</div>
+
+<div class="modal fade" id="refundModal" tabindex="-1" aria-labelledby="refundTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" action="{% url 'sales:payment_refund' ticket.pk %}" class="pos-form">
+      {% csrf_token %}
+      <div class="modal-header"><h2 class="modal-title h5" id="refundTitle">Rembourser le client</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body d-grid gap-3">
+        <div class="field"><label for="{{ refund_form.amount_fcfa.id_for_label }}">{{ refund_form.amount_fcfa.label }}</label>{{ refund_form.amount_fcfa }}<div class="help text-secondary small mt-1">Au maximum {{ ticket.amount_paid_fcfa|floatformat:"0g" }} FCFA.</div></div>
+        <div class="field"><label for="{{ refund_form.method.id_for_label }}">{{ refund_form.method.label }}</label>{{ refund_form.method }}</div>
+        <div class="field"><label for="{{ refund_form.justification.id_for_label }}">{{ refund_form.justification.label }}</label>{{ refund_form.justification }}</div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Retour</button><button type="submit" class="btn btn-primary rounded-pill">Enregistrer le remboursement</button></div>
+    </form>
+  </div></div>
+</div>
+
+{% endwith %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    // Style Bootstrap sur tous les champs de la page
+    document.querySelectorAll('.pos-form input, .pos-form select, .pos-form textarea').forEach(function (el) {
+      if (el.type === 'hidden') return;
+      el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+      if (el.name && /_fcfa$/.test(el.name) && !el.closest('.input-group') && !el.closest('.d-flex')) {
+        var g = document.createElement('div'); g.className = 'input-group';
+        el.parentNode.insertBefore(g, el); g.appendChild(el);
+        var s = document.createElement('span'); s.className = 'input-group-text'; s.textContent = 'FCFA'; g.appendChild(s);
+      }
+    });
+
+    // Produits à toucher : une unité ajoutée d'un seul geste
+    var form = document.getElementById('lineForm'), tiles = document.getElementById('tiles');
+    if (form && tiles) {
+      var product = form.querySelector('[name=product_bar]'), serving = form.querySelector('[name=serving]'), qty = form.querySelector('[name=quantity]');
+      tiles.addEventListener('click', function (e) {
+        var tile = e.target.closest('.tile');
+        if (!tile) return;
+        product.value = tile.dataset.id; serving.value = ''; qty.value = 1;
+        tiles.classList.add('busy');
+        if (form.requestSubmit) form.requestSubmit(); else form.submit();
+      });
+      var search = document.getElementById('tileSearch');
+      if (search) search.addEventListener('input', function () {
+        var q = search.value.trim().toLowerCase();
+        tiles.querySelectorAll('.tile').forEach(function (t) { t.style.display = !q || t.dataset.name.indexOf(q) !== -1 ? '' : 'none'; });
+      });
+
+      // Ajout précis : n'afficher que les formats (verre, mesure) du produit choisi
+      var all = Array.prototype.map.call(serving.options, function (o) { return { v: o.value, t: o.text }; });
+      var refresh = function () {
+        var opt = product.options[product.selectedIndex], name = opt ? opt.text : '';
+        serving.innerHTML = '';
+        all.forEach(function (o) {
+          if (o.v === '' || (name && o.t.indexOf(name) !== -1)) {
+            var op = document.createElement('option'); op.value = o.v;
+            op.textContent = o.v === '' ? o.t : o.t.replace(/ @ .*$/, ''); serving.appendChild(op);
+          }
+        });
+      };
+      product.addEventListener('change', refresh); refresh();
+    }
+
+    // Fenêtre « annuler la ligne » : adresse et nom de la ligne choisie
+    var voidModal = document.getElementById('voidModal');
+    if (voidModal) voidModal.addEventListener('show.bs.modal', function (e) {
+      var b = e.relatedTarget; if (!b) return;
+      document.getElementById('voidForm').action = b.dataset.action;
+      document.getElementById('voidName').textContent = b.dataset.name;
+    });
+
+    // Encaisser : tout le reste en un clic
+    var fill = document.getElementById('fillBalance');
+    if (fill) fill.addEventListener('click', function () {
+      var inp = fill.closest('.field').querySelector('input'); inp.value = fill.dataset.amount; inp.focus();
+    });
+
+    // Marge calculée
+    document.querySelectorAll('.js-diff').forEach(function (c) {
+      var d = (parseFloat(c.dataset.a) || 0) - (parseFloat(c.dataset.b) || 0);
+      c.textContent = (d > 0 ? '+' : '') + d.toLocaleString('fr-FR') + ' ' + (c.dataset.unit || '');
+      c.classList.add(d < 0 ? 'neg' : 'pos');
+    });
+  })();
+</script>
+{% endblock %}

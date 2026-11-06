@@ -1,0 +1,211 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Créance de {{ credit.customer.name }}{% endblock %}
+{% block page_title %}{{ credit.customer.name }}{% endblock %}
+{% block page_sub %}Créance de {{ credit.amount_fcfa|floatformat:"0g" }} FCFA, enregistrée le {{ credit.created_at|date:"j F Y" }}{% if credit.approved_by %} par {% firstof credit.approved_by.first_name credit.approved_by.get_username %}{% endif %}.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 460px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .card-bar.flush { padding: 0; overflow: hidden; }
+  .table-wrap { overflow-x: auto; }
+  .t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .t th { padding: .7rem .9rem; text-align: right; color: var(--muted); font-weight: 600; font-size: .8rem; white-space: nowrap; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .t td { padding: .7rem .9rem; text-align: right; vertical-align: middle; border-bottom: 1px dashed var(--line); }
+  .t th:first-child, .t td:first-child, .t .l { text-align: left; }
+  .t tbody tr:last-child td { border-bottom: 0; }
+  .t tbody tr:hover { background: var(--surface-2); }
+  .t .nm { font-weight: 600; }
+  .t .sub { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
+  .t a { color: inherit; text-decoration: none; } .t a:hover { color: var(--accent); }
+  .pos { color: #3FAE6A; } .neg { color: #E5534B; } .muted { color: var(--muted); }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+  .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+  .empty-row { color: var(--muted); text-align: center !important; padding: 1.5rem !important; }
+  .field label { font-weight: 600; margin-bottom: .35rem; display: block; }
+  .field .help { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .field .err { color: #E5534B; font-size: .85rem; margin-top: .3rem; }
+  .field .form-control, .field .form-select { padding: .7rem .9rem; }
+  .field .input-group-text { background: var(--surface-2); border-color: var(--line); color: var(--muted); font-weight: 600; font-size: .85rem; }
+  .modal { --bs-modal-bg: var(--surface); --bs-modal-color: var(--ink); --bs-modal-border-color: var(--line); --bs-modal-border-radius: var(--radius); --bs-modal-header-border-color: var(--line); --bs-modal-footer-border-color: var(--line); }
+  [data-bs-theme="dark"] .modal .btn-close { filter: invert(1); }
+
+  .big-rest { font-family: var(--font-display); font-weight: 800; font-size: calc(2.6rem * var(--title-scale)); line-height: 1; }
+  .bar-x { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin: 1rem 0 .4rem; }
+  .bar-x span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .7s var(--ease); }
+  .line { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .65rem 0; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .line:last-child { border-bottom: 0; }
+  .line .sub { display: block; color: var(--muted); font-size: .82rem; }
+  .info-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; font-size: .93rem; }
+  .info-list li { display: flex; justify-content: space-between; gap: 1rem; }
+  .info-list li span { color: var(--muted); } .info-list li b { font-weight: 600; text-align: right; }
+  .info-list a { color: var(--ink); } .info-list a:hover { color: var(--accent); }
+  .contact-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+  .contact-btns .btn { display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .7rem .4rem; border-radius: calc(var(--radius) * .7); font-weight: 600; font-size: .86rem; }
+  .contact-btns .btn i { font-size: 1.3rem; }
+  .btn-wa { background: #25D366; border-color: #25D366; color: #06210F; } .btn-wa:hover { background: #1FBA5A; border-color: #1FBA5A; color: #06210F; }
+  @media print { .no-print { display: none !important; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'credits:credit_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Crédits</a>
+  <a href="{% url 'credits:credit_list' %}?customer={{ credit.customer_id }}&state=toutes" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-list-ul"></i> Toutes les créances du client</a>
+  {% if can_write_off %}<button type="button" class="btn btn-outline-danger rounded-pill" data-bs-toggle="modal" data-bs-target="#writeOffModal"><i class="bi bi-slash-circle"></i> Passer en perte</button>{% endif %}
+{% endblock %}
+
+{% block content %}
+{% with s=credit.status|upper %}
+
+{% if s == 'SETTLED' %}
+  <div class="alert alert-success" role="status"><i class="bi bi-check-circle"></i> Créance entièrement soldée.</div>
+{% elif s == 'WRITTEN_OFF' %}
+  <div class="alert alert-secondary" role="status"><i class="bi bi-slash-circle"></i> Cette créance a été passée en perte : {{ credit.balance_fcfa|floatformat:"0g" }} FCFA ne seront pas recouvrés.</div>
+{% elif credit.is_overdue %}
+  <div class="alert alert-danger" role="alert"><i class="bi bi-exclamation-triangle"></i> Créance en retard : l'échéance du {{ credit.due_date|date:"j F Y" }} est dépassée depuis {{ credit.due_date|timesince }}.</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <div class="col-lg-7 d-grid gap-4 align-content-start">
+
+    <div class="card-bar">
+      <div class="text-secondary">Reste dû</div>
+      <div class="big-rest {% if active %}neg{% else %}pos{% endif %}">{{ credit.balance_fcfa|floatformat:"0g" }} <small style="font-size:.35em;color:var(--muted)">FCFA</small></div>
+      {% widthratio credit.amount_paid_fcfa credit.amount_fcfa 100 as pct %}
+      <div class="bar-x"><span style="width: {{ pct }}%"></span></div>
+      <div class="d-flex justify-content-between text-secondary small"><span>Réglé : {{ credit.amount_paid_fcfa|floatformat:"0g" }} FCFA</span><span>{{ pct }} %</span></div>
+    </div>
+
+    {% if active %}
+    <div class="card-bar no-print">
+      <div class="blk-title"><h2>Enregistrer un règlement</h2></div>
+      <form method="post" action="{% url 'credits:payment_add' credit.pk %}" class="cr-form">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-sm-6 field"><label for="{{ payment_form.amount_fcfa.id_for_label }}">{{ payment_form.amount_fcfa.label }}</label>{{ payment_form.amount_fcfa }}
+            <button type="button" class="btn btn-sm btn-link px-0 mt-1" id="fillBalance" data-amount="{% localize off %}{{ credit.balance_fcfa }}{% endlocalize %}">Tout le reste ({{ credit.balance_fcfa|floatformat:"0g" }} FCFA)</button></div>
+          <div class="col-sm-6 field"><label for="{{ payment_form.method.id_for_label }}">{{ payment_form.method.label }}</label>{{ payment_form.method }}</div>
+          <div class="col-12 field"><label for="{{ payment_form.reference.id_for_label }}">{{ payment_form.reference.label }} <span class="text-secondary fw-normal">(facultatif)</span></label>{{ payment_form.reference }}</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg w-100 mt-3"><i class="bi bi-cash-coin"></i> Enregistrer le règlement</button>
+      </form>
+    </div>
+
+    {% if reminder_form %}
+    <div class="card-bar no-print">
+      <div class="blk-title"><h2>Relancer le client</h2></div>
+      <form method="post" action="{% url 'credits:reminder_add' credit.pk %}" class="cr-form">
+        {% csrf_token %}
+        <div class="field mb-3">
+          <label for="reminderMessage">Message</label>
+          <textarea name="message" id="reminderMessage" rows="3" maxlength="255" class="form-control">{{ reminder_form.message.value }}</textarea>
+          <div class="help">Le message est prêt : vous pouvez le modifier avant l'envoi.</div>
+        </div>
+        <div class="contact-btns">
+          <button type="submit" name="channel" value="WHATSAPP" class="btn btn-wa" {% if not credit.customer.phone %}disabled{% endif %}><i class="bi bi-whatsapp"></i> WhatsApp</button>
+          <button type="submit" name="channel" value="SMS" class="btn btn-outline-secondary" {% if not credit.customer.phone %}disabled{% endif %}><i class="bi bi-chat-text"></i> SMS</button>
+          <button type="submit" name="channel" value="CALL" class="btn btn-outline-secondary" {% if not credit.customer.phone %}disabled{% endif %}><i class="bi bi-telephone"></i> Appeler</button>
+        </div>
+        <button type="submit" name="channel" value="IN_APP" class="btn btn-link px-0 mt-2">Noter une relance sans l'envoyer</button>
+        {% if not credit.customer.phone %}<p class="text-secondary small mb-0">Ce client n'a pas de numéro de téléphone : <a href="{% url 'sales:customer_edit' credit.customer.pk %}">ajoutez-le</a> pour le relancer.</p>{% endif %}
+      </form>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Règlements reçus</h2></div>
+      {% for p in payments %}
+        <div class="line">
+          <div><b>{{ p.amount_fcfa|floatformat:"0g" }} FCFA</b>
+            <span class="sub">{{ p.get_method_display }}, {{ p.paid_at|date:"j F Y, H:i" }}{% if p.reference %}, réf. {{ p.reference }}{% endif %}{% if p.received_by %}, par {% firstof p.received_by.first_name p.received_by.get_username %}{% endif %}</span></div>
+          <span class="chip chip-jus">Reçu</span>
+        </div>
+      {% empty %}<p class="text-secondary mb-0">Aucun règlement pour le moment.</p>{% endfor %}
+    </div>
+  </div>
+
+  <div class="col-lg-5 d-grid gap-4 align-content-start">
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Client</h2><span class="chip {% if s == 'OPEN' %}chip-biere{% elif s == 'PARTIAL' %}chip-soft{% elif s == 'SETTLED' %}chip-jus{% else %}chip-neutral{% endif %}">{{ credit.get_status_display }}</span></div>
+      <ul class="info-list">
+        <li><span>Nom</span><b><a href="{% url 'sales:customer_detail' credit.customer.pk %}">{{ credit.customer.name }}</a></b></li>
+        <li><span>Téléphone</span><b>{% if credit.customer.phone %}<a href="tel:{{ credit.customer.phone }}">{{ credit.customer.phone }}</a>{% else %}Non renseigné{% endif %}</b></li>
+        <li><span>Origine</span><b>{% if credit.ticket %}<a href="{% url 'sales:ticket_detail' credit.ticket.pk %}">Ticket {{ credit.ticket.display_name }}</a>{% else %}Saisie manuelle{% endif %}</b></li>
+        <li><span>Échéance</span><b class="{% if credit.is_overdue %}neg{% endif %}">{% if credit.due_date %}{{ credit.due_date|date:"j F Y" }}{% else %}Aucune{% endif %}</b></li>
+      </ul>
+      {% if credit.note %}<p class="text-secondary small mt-3 mb-0">{{ credit.note|linebreaksbr }}</p>{% endif %}
+
+      {% if active %}
+      <form method="post" action="{% url 'credits:due_date_update' credit.pk %}" class="cr-form mt-3 pt-3 no-print" style="border-top:1px dashed var(--line)">
+        {% csrf_token %}
+        <label class="fw-semibold mb-1" for="{{ due_form.due_date.id_for_label }}">{{ due_form.due_date.label }}</label>
+        <div class="d-flex gap-2">{{ due_form.due_date }}<button type="submit" class="btn btn-outline-secondary rounded-pill">Modifier</button></div>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="card-bar">
+      <div class="blk-title"><h2>Relances envoyées</h2></div>
+      {% for r in reminders %}
+        <div class="line">
+          <div><b>{{ r.get_channel_display }}</b>
+            <span class="sub">{{ r.created_at|date:"j F Y, H:i" }}{% if r.sent_by %}, par {% firstof r.sent_by.first_name r.sent_by.get_username %}{% endif %}</span>
+            {% if r.message %}<span class="sub">{{ r.message }}</span>{% endif %}</div>
+        </div>
+      {% empty %}<p class="text-secondary mb-0">Aucune relance pour le moment.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if can_write_off %}
+<div class="modal fade" id="writeOffModal" tabindex="-1" aria-labelledby="woTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" action="{% url 'credits:credit_write_off' credit.pk %}" class="cr-form">
+      {% csrf_token %}
+      <div class="modal-header"><h2 class="modal-title h5" id="woTitle">Passer la créance en perte</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body">
+        <p class="text-secondary">Les <b>{{ credit.balance_fcfa|floatformat:"0g" }} FCFA</b> restants ne seront plus réclamés. Cette action est réservée au gérant et reste dans l'historique.</p>
+        <label class="fw-semibold mb-1" for="{{ write_off_form.reason.id_for_label }}">{{ write_off_form.reason.label }}</label>{{ write_off_form.reason }}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Retour</button><button type="submit" class="btn btn-danger rounded-pill">Passer en perte</button></div>
+    </form>
+  </div></div>
+</div>
+{% endif %}
+
+{% endwith %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    document.querySelectorAll('.cr-form input, .cr-form select').forEach(function (el) {
+      if (el.type === 'hidden') return;
+      el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+      if (el.name && /_fcfa$/.test(el.name)) {
+        var g = document.createElement('div'); g.className = 'input-group';
+        el.parentNode.insertBefore(g, el); g.appendChild(el);
+        var s = document.createElement('span'); s.className = 'input-group-text'; s.textContent = 'FCFA'; g.appendChild(s);
+      }
+    });
+    var fill = document.getElementById('fillBalance');
+    if (fill) fill.addEventListener('click', function () {
+      var inp = fill.closest('.field').querySelector('input'); inp.value = fill.dataset.amount; inp.focus();
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,10 +1,14 @@
+from datetime import timedelta
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from core.realtime import send_to_user
 
-from notifications.models import Notification, NotificationPreference
+from notifications.models import (Notification, NotificationPreference, NotificationType,
+                                  PlatformAnnouncement, PushSubscription)
 
 
 def _is_enabled(user, bar, ntype, channel="in_app") -> bool:
@@ -73,6 +77,71 @@ def mark_read(user, ids=None, dedup_key=None):
     return qs.update(is_read=True, read_at=timezone.now())
 
 
+def visible(user, bar=None):
+    """Notifications affichables : non expirées, du bar courant + annonces plateforme (sans bar)."""
+    now = timezone.now()
+    qs = Notification.objects.filter(recipient=user).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+    if bar:
+        qs = qs.filter(Q(bar=bar) | Q(bar__isnull=True))
+    return qs
+
+
 def unread_count(user, bar=None) -> int:
-    qs = Notification.objects.filter(recipient=user, is_read=False)
-    return qs.filter(bar=bar).count() if bar else qs.count()
+    return visible(user, bar).filter(is_read=False).count()
+
+
+# ------------------------------------------------------------------ préférences
+def mute_all(user, bar, hours=None):
+    """Met en sourdine tous les types de notification d'un bar (hours=None : réactive)."""
+    until = timezone.now() + timedelta(hours=hours) if hours else None
+    with transaction.atomic():
+        for value in NotificationType.values:
+            NotificationPreference.objects.update_or_create(
+                user=user, bar=bar, type=value, defaults={"muted_until": until})
+    return until
+
+
+# ------------------------------------------------------------------ annonces plateforme
+def due_announcements():
+    now = timezone.now()
+    return (PlatformAnnouncement.objects.filter(sent=False, publish_at__lte=now)
+            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)))
+
+
+@transaction.atomic
+def publish_announcement(announcement):
+    """Envoie l'annonce à tous les utilisateurs actifs (une seule fois par personne, même multi-bars).
+    Retourne le nombre de destinataires."""
+    from accounts.models import BarMembership
+
+    announcement = PlatformAnnouncement.objects.select_for_update().get(pk=announcement.pk)
+    if announcement.sent:
+        return 0
+    recipients = {}
+    for m in BarMembership.objects.filter(is_active=True).select_related("user", "role"):
+        if announcement.only_owners and not m.is_owner:
+            continue
+        recipients[m.user_id] = m.user
+    count = 0
+    for user in recipients.values():
+        n = notify(recipient=user, type=NotificationType.SYSTEM, title=announcement.title,
+                   body=announcement.body[:500], level=announcement.level,
+                   dedup_key=f"announce:{announcement.pk}")
+        if n:
+            count += 1
+            if announcement.expires_at:
+                n.expires_at = announcement.expires_at
+                n.save(update_fields=["expires_at", "updated_at"])
+    announcement.sent = True
+    announcement.save(update_fields=["sent", "updated_at"])
+    return count
+
+
+# ------------------------------------------------------------------ nettoyage
+def purge_notifications(read_days=30):
+    """Supprime les notifications lues depuis plus de `read_days` jours, les expirées et les abonnements push inactifs."""
+    now = timezone.now()
+    old_read = Notification.objects.filter(is_read=True, read_at__lt=now - timedelta(days=read_days)).delete()[0]
+    expired = Notification.objects.filter(expires_at__lt=now).delete()[0]
+    push = PushSubscription.objects.filter(is_active=False).delete()[0]
+    return {"read": old_read, "expired": expired, "push": push}

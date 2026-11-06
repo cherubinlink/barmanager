@@ -1,0 +1,122 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Crédits clients{% endblock %}
+{% block page_title %}Crédits clients{% endblock %}
+{% block page_sub %}Ce que vos clients vous doivent, avec les échéances à surveiller.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 460px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+  .pills a { padding: .4rem .95rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem; transition: all .2s; }
+  .pills a:hover { color: var(--ink); border-color: var(--accent); }
+  .pills a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .card-bar.flush { padding: 0; overflow: hidden; }
+  .table-wrap { overflow-x: auto; }
+  .t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .t th { padding: .7rem .9rem; text-align: right; color: var(--muted); font-weight: 600; font-size: .8rem; white-space: nowrap; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .t td { padding: .7rem .9rem; text-align: right; vertical-align: middle; border-bottom: 1px dashed var(--line); }
+  .t th:first-child, .t td:first-child, .t .l { text-align: left; }
+  .t tbody tr:last-child td { border-bottom: 0; }
+  .t tbody tr:hover { background: var(--surface-2); }
+  .t .nm { font-weight: 600; }
+  .t .sub { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
+  .t a { color: inherit; text-decoration: none; } .t a:hover { color: var(--accent); }
+  .pos { color: #3FAE6A; } .neg { color: #E5534B; } .muted { color: var(--muted); }
+  .chip-neutral { background: var(--surface-2); color: var(--muted); }
+  .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state .e-ico { font-size: 2.6rem; margin-bottom: .5rem; }
+  .empty-row { color: var(--muted); text-align: center !important; padding: 1.5rem !important; }
+  .field label { font-weight: 600; margin-bottom: .35rem; display: block; }
+  .field .help { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .field .err { color: #E5534B; font-size: .85rem; margin-top: .3rem; }
+  .field .form-control, .field .form-select { padding: .7rem .9rem; }
+  .field .input-group-text { background: var(--surface-2); border-color: var(--line); color: var(--muted); font-weight: 600; font-size: .85rem; }
+  .modal { --bs-modal-bg: var(--surface); --bs-modal-color: var(--ink); --bs-modal-border-color: var(--line); --bs-modal-border-radius: var(--radius); --bs-modal-header-border-color: var(--line); --bs-modal-footer-border-color: var(--line); }
+  [data-bs-theme="dark"] .modal .btn-close { filter: invert(1); }
+
+  .badge-late { background: rgba(229,83,75,.16); color: #E5534B; }
+  .filter-tag { display: inline-flex; align-items: center; gap: .5rem; padding: .35rem .85rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: .88rem; }
+  .filter-tag a { color: inherit; text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'sales:customer_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-people"></i> Clients</a>
+  <a href="{% url 'credits:credit_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nouvelle créance</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">Total dû par vos clients</span>
+    <span class="value">{{ summary.debt|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{{ summary.count }} créance{{ summary.count|pluralize }} en cours</span>
+  </div></div>
+  <div class="col-6 col-xl-3"><div class="card-bar stat">
+    <span class="label">En retard</span>
+    <span class="value" {% if summary.overdue_count %}style="color:#E5534B"{% endif %}>{{ summary.overdue_debt|floatformat:"0g" }} <small>FCFA</small></span>
+    <span class="label">{% if summary.overdue_count %}{{ summary.overdue_count }} créance{{ summary.overdue_count|pluralize }} dont l'échéance est dépassée{% else %}Aucun retard{% endif %}</span>
+  </div></div>
+</div>
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  {% if customer %}<input type="hidden" name="customer" value="{{ customer }}">{% endif %}
+  <div class="search-box"><i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Nom ou téléphone du client" aria-label="Rechercher un client">
+  </div>
+  {% if customer %}<span class="filter-tag"><i class="bi bi-person"></i> Un seul client <a href="?state={{ state }}&q={{ q|urlencode }}" aria-label="Retirer le filtre"><i class="bi bi-x-lg"></i></a></span>{% endif %}
+  <span class="ms-auto text-secondary small">{{ page.paginator.count }} créance{{ page.paginator.count|pluralize }}</span>
+</form>
+
+<div class="pills">
+  <a href="?state=actifs&q={{ q|urlencode }}&customer={{ customer }}" class="{% if state == 'actifs' %}on{% endif %}">En cours</a>
+  <a href="?state=retard&q={{ q|urlencode }}&customer={{ customer }}" class="{% if state == 'retard' %}on{% endif %}">En retard</a>
+  <a href="?state=soldees&q={{ q|urlencode }}&customer={{ customer }}" class="{% if state == 'soldees' %}on{% endif %}">Soldées</a>
+  <a href="?state=pertes&q={{ q|urlencode }}&customer={{ customer }}" class="{% if state == 'pertes' %}on{% endif %}">Passées en perte</a>
+  <a href="?state=toutes&q={{ q|urlencode }}&customer={{ customer }}" class="{% if state == 'toutes' %}on{% endif %}">Toutes</a>
+</div>
+
+<div class="card-bar flush">
+  <div class="table-wrap">
+    <table class="t">
+      <thead><tr><th>Client</th><th class="l">Origine</th><th>Montant</th><th>Payé</th><th>Reste dû</th><th>Échéance</th><th class="l">État</th></tr></thead>
+      <tbody>
+        {% for c in page.object_list %}
+        {% with s=c.status|upper %}
+        <tr>
+          <td><a href="{% url 'credits:credit_detail' c.pk %}"><span class="nm">{{ c.customer.name }}</span>{% if c.customer.phone %}<span class="sub">{{ c.customer.phone }}</span>{% endif %}</a></td>
+          <td class="l muted">{% if c.ticket %}Ticket {{ c.ticket.display_name }}{% else %}Saisie manuelle{% endif %}</td>
+          <td>{{ c.amount_fcfa|floatformat:"0g" }}</td>
+          <td class="muted">{{ c.amount_paid_fcfa|floatformat:"0g" }}</td>
+          <td><b class="{% if s == 'OPEN' or s == 'PARTIAL' %}neg{% else %}muted{% endif %}">{{ c.balance_fcfa|floatformat:"0g" }}</b></td>
+          <td class="{% if c.is_overdue %}neg{% else %}muted{% endif %}">{% if c.due_date %}{{ c.due_date|date:"j M Y" }}{% else %}—{% endif %}</td>
+          <td class="l">
+            <span class="chip {% if s == 'OPEN' %}chip-biere{% elif s == 'PARTIAL' %}chip-soft{% elif s == 'SETTLED' %}chip-jus{% else %}chip-neutral{% endif %}">{{ c.get_status_display }}</span>
+            {% if c.is_overdue %}<span class="chip badge-late">En retard</span>{% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="7" class="empty-row">{% if q or customer or state != 'actifs' %}Aucune créance ne correspond à ces filtres.{% else %}Aucune créance en cours : personne ne vous doit d'argent.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page.has_previous %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Précédent</a>{% endif %}
+  <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary rounded-pill" href="?{{ querystring }}&page={{ page.next_page_number }}">Suivant <i class="bi bi-chevron-right"></i></a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}
