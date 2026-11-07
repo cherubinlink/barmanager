@@ -1,0 +1,100 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Prévisions{% endblock %}
+{% block page_title %}Prévisions{% endblock %}
+{% block page_sub %}Ce que vous devriez vendre cette semaine, et les produits qui risquent de manquer.{% endblock %}
+
+{% block extra_css %}
+{% include "analytics/_styles.html" %}
+{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="{% url 'analytics:forecast_refresh' %}" class="m-0">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i> Recalculer les prévisions</button>
+  </form>
+{% endblock %}
+
+{% block content %}
+
+{% include "analytics/_nav.html" with active="forecasts" %}
+
+{% if days %}
+<section class="block">
+  <div class="block-h">
+    <h2>Chiffre d'affaires attendu, 7 prochains jours</h2>
+    {% if week %}<small>Total de la semaine : <b>{{ week.predicted_revenue_fcfa|default_if_none:0|floatformat:"0g" }} FCFA</b></small>{% endif %}
+  </div>
+  <div class="tiles">
+    {% for f in days %}
+    <div class="tile">
+      <div class="t-d">{{ f.target_start|date:"l d/m" }}</div>
+      <div class="t-v">{{ f.predicted_revenue_fcfa|default_if_none:0|floatformat:"0g" }}</div>
+      <div class="t-s">FCFA{% if f.confidence is not None %}, fiabilité {% widthratio f.confidence 1 100 %} %{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="note mt-2 mb-0">Moyenne du même jour de la semaine sur les 8 dernières semaines.</p>
+</section>
+{% endif %}
+
+<form method="get" class="filters">
+  <div class="search-box">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ form.q.value|default_if_none:'' }}" placeholder="Rechercher un produit ou une marque" aria-label="Rechercher">
+  </div>
+  <select name="within" class="form-select" aria-label="Rupture probable" onchange="this.form.submit()">
+    <option value="">Toutes les ruptures</option>
+    {% for v, label in form.fields.within.choices %}<option value="{{ v }}" {% if form.within.value == v %}selected{% endif %}>Rupture {{ label|lower }}</option>{% endfor %}
+  </select>
+  {% if form.q.value or form.within.value %}<a href="?" class="btn btn-link text-decoration-none">Réinitialiser</a>{% endif %}
+  <span class="count">{{ page.paginator.count }} produit{{ page.paginator.count|pluralize }}</span>
+</form>
+
+{% if page.object_list %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <thead>
+      <tr><th>Produit</th><th>Ventes attendues</th><th>Chiffre d'affaires</th><th>Rupture probable</th><th>À commander</th><th>Fiabilité</th></tr>
+    </thead>
+    <tbody>
+      {% for f in page.object_list %}
+      <tr>
+        <td>
+          <a class="row-link" href="{% url 'analytics:product_analysis' f.product_bar_id %}">{{ f.product_bar.product.name }}</a>
+          <span class="sub">{{ f.product_bar.product.category.name }}</span>
+        </td>
+        <td>{{ f.predicted_qty|floatformat:"-1g" }}</td>
+        <td>{{ f.predicted_revenue_fcfa|default_if_none:0|floatformat:"0g" }}</td>
+        <td>
+          {% if not f.predicted_stockout_date %}<span class="muted">Pas de rupture prévue</span>
+          {% elif f.predicted_stockout_date <= today %}<span class="neg">Déjà en rupture</span>
+          {% else %}<span class="warn">{{ f.predicted_stockout_date|date:"d/m" }}</span><span class="sub">dans {{ f.predicted_stockout_date|timeuntil:today }}</span>
+          {% endif %}
+        </td>
+        <td class="{% if f.suggested_order_qty %}warn{% else %}muted{% endif %}">{{ f.suggested_order_qty|default_if_none:0|floatformat:"-1g" }}</td>
+        <td>{% if f.confidence is not None %}{% widthratio f.confidence 1 100 %} %{% else %}-{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="note mt-2 mb-0">Les produits sont triés par date de rupture : les plus urgents d'abord. La quantité à commander couvre 14 jours de ventes.</p>
+
+{% include "analytics/_pager.html" %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🔮</div>
+  {% if form.q.value or form.within.value %}
+    <h2 class="h5">Aucun produit ne correspond</h2>
+    <p class="text-secondary">Essayez un autre mot ou une autre échéance.</p>
+    <a href="?" class="btn btn-outline-secondary rounded-pill">Voir toutes les prévisions</a>
+  {% else %}
+    <h2 class="h5">Pas encore de prévision</h2>
+    <p class="text-secondary">Il faut au moins 14 jours de ventes enregistrées. Dès que vous avez assez d'historique, utilisez « Recalculer les prévisions ».</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

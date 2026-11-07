@@ -1,0 +1,59 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Journée du {{ summary.business_date|date:"d/m/Y" }}{% endblock %}
+{% block page_title %}{{ summary.business_date|date:"l d F Y" }}{% endblock %}
+{% block page_sub %}Ce qui s'est vendu ce jour-là, produit par produit.{% endblock %}
+
+{% block extra_css %}
+{% include "analytics/_styles.html" %}
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'analytics:summary_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Toutes les journées</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="kpis">
+  <div class="kpi main"><span class="k-l">Chiffre d'affaires</span><b class="k-v">{{ summary.revenue_fcfa|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{{ summary.tickets_count }} ticket{{ summary.tickets_count|pluralize }}</span></div>
+  <div class="kpi"><span class="k-l">Coût des marchandises</span><b class="k-v">{{ summary.cogs_fcfa|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">&nbsp;</span></div>
+  <div class="kpi"><span class="k-l">Marge brute</span><b class="k-v {% if summary.gross_margin_fcfa < 0 %}neg{% endif %}">{{ summary.gross_margin_fcfa|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{% if summary.revenue_fcfa %}{% widthratio summary.gross_margin_fcfa summary.revenue_fcfa 100 %} % du chiffre d'affaires{% endif %}</span></div>
+  <div class="kpi"><span class="k-l">Encaissé</span><b class="k-v">{{ summary.collected_fcfa|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{% if summary.credit_granted_fcfa %}Crédit accordé : {{ summary.credit_granted_fcfa|floatformat:"0g" }} FCFA{% else %}Aucun crédit accordé{% endif %}</span></div>
+  <div class="kpi"><span class="k-l">Pertes</span><b class="k-v {% if summary.losses_fcfa %}neg{% endif %}">{{ summary.losses_fcfa|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">&nbsp;</span></div>
+  <div class="kpi"><span class="k-l">Heure de pointe</span><b class="k-v">{% if summary.peak_hour is not None %}{{ summary.peak_hour }}h{% else %}-{% endif %}</b><span class="k-s">Heure où l'on a le plus vendu</span></div>
+</div>
+
+<section class="block">
+  <div class="block-h"><h2>Ventes par produit</h2><small>{{ stats|length }} produit{{ stats|length|pluralize }}</small></div>
+  {% if stats %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Produit</th><th>Vendus</th><th>Chiffre d'affaires</th><th>Coût</th><th>Marge</th><th>Pertes (qté)</th></tr></thead>
+      <tbody>
+        {% for s in stats %}
+        <tr>
+          <td>
+            <a class="row-link" href="{% url 'analytics:product_analysis' s.product_bar_id %}">{{ s.product_bar.product.name }}</a>
+            <span class="sub">{{ s.product_bar.product.category.name }}</span>
+            {% if summary.revenue_fcfa %}<span class="share" title="Part du chiffre d'affaires de la journée"><i style="width: {% widthratio s.revenue_fcfa summary.revenue_fcfa 100 %}%"></i></span>{% endif %}
+          </td>
+          <td>{{ s.qty_sold|floatformat:"-1g" }}</td>
+          <td>{{ s.revenue_fcfa|floatformat:"0g" }}</td>
+          <td>{{ s.cogs_fcfa|floatformat:"0g" }}</td>
+          <td class="{% if s.margin_fcfa < 0 %}neg{% else %}pos{% endif %}">{{ s.margin_fcfa|floatformat:"0g" }}</td>
+          <td class="{% if s.qty_lost %}neg{% else %}muted{% endif %}">{{ s.qty_lost|floatformat:"-1g" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-bar empty-state">
+    <div class="e-ico">🍺</div>
+    <h2 class="h5">Aucune vente de produit enregistrée ce jour-là</h2>
+    <p class="text-secondary">La journée contient seulement des pertes ou des règlements de créances.</p>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

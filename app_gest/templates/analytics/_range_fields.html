@@ -1,0 +1,5 @@
+<select name="days" class="form-select" aria-label="Période">
+  {% for v, label in form.fields.days.choices %}<option value="{{ v }}" {% if form.days.value == v or not form.days.value and v == "30" %}selected{% endif %}>{{ label }}</option>{% endfor %}
+</select>
+<label class="dates">ou du <input type="date" name="start" value="{{ form.start.value|default_if_none:'' }}" aria-label="Du"></label>
+<label class="dates">au <input type="date" name="end" value="{{ form.end.value|default_if_none:'' }}" aria-label="Au"></label>

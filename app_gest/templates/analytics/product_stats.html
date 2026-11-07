@@ -1,0 +1,73 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Ventes par produit{% endblock %}
+{% block page_title %}Ventes par produit{% endblock %}
+{% block page_sub %}Classement des boissons du {{ start|date:"d/m/Y" }} au {{ end|date:"d/m/Y" }}.{% endblock %}
+
+{% block extra_css %}
+{% include "analytics/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+
+{% include "analytics/_nav.html" with active="products" %}
+
+<form method="get" class="filters">
+  <div class="search-box">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ form.q.value|default_if_none:'' }}" placeholder="Rechercher un produit ou une marque" aria-label="Rechercher">
+  </div>
+  <select name="sort" class="form-select" aria-label="Trier par" onchange="this.form.submit()">
+    {% for v, label in form.fields.sort.choices %}<option value="{{ v }}" {% if sort == v %}selected{% endif %}>Trier par : {{ label|lower }}</option>{% endfor %}
+  </select>
+  {% include "analytics/_range_fields.html" %}
+  <button type="submit" class="btn btn-primary rounded-pill">Appliquer</button>
+  {% if form.q.value %}<a href="?sort={{ sort }}" class="btn btn-link text-decoration-none">Réinitialiser</a>{% endif %}
+  <span class="count">{{ page.paginator.count }} produit{{ page.paginator.count|pluralize }}</span>
+</form>
+
+{% if page.object_list %}
+
+<div class="kpis">
+  <div class="kpi main"><span class="k-l">Chiffre d'affaires des produits</span><b class="k-v">{{ total_revenue|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{% if form.q.value %}Pour la recherche en cours{% else %}Tous produits confondus{% endif %}</span></div>
+  <div class="kpi"><span class="k-l">Marge brute</span><b class="k-v {% if total_margin < 0 %}neg{% endif %}">{{ total_margin|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{% if total_revenue %}{% widthratio total_margin total_revenue 100 %} % du chiffre d'affaires{% endif %}</span></div>
+</div>
+
+<div class="tbl-wrap">
+  <table class="tbl">
+    <thead>
+      <tr><th>Produit</th><th>Vendus</th><th>Chiffre d'affaires</th><th>Coût</th><th>Marge</th><th>Marge en %</th><th>Pertes (qté)</th></tr>
+    </thead>
+    <tbody>
+      {% for r in page.object_list %}
+      <tr>
+        <td>
+          <a class="row-link" href="{% url 'analytics:product_analysis' r.product_bar_id %}">{{ r.name }}</a>
+          <span class="sub">{{ r.category }}</span>
+          {% if total_revenue %}<span class="share" title="Part du chiffre d'affaires"><i style="width: {% widthratio r.revenue total_revenue 100 %}%"></i></span>{% endif %}
+        </td>
+        <td>{{ r.qty|floatformat:"-1g" }}</td>
+        <td>{{ r.revenue|floatformat:"0g" }}</td>
+        <td>{{ r.cogs|floatformat:"0g" }}</td>
+        <td class="{% if r.margin < 0 %}neg{% else %}pos{% endif %}">{{ r.margin|floatformat:"0g" }}</td>
+        <td class="{% if r.margin_pct is None %}muted{% elif r.margin_pct < 15 %}warn{% endif %}">{% if r.margin_pct is not None %}{{ r.margin_pct|floatformat:"-1" }} %{% else %}-{% endif %}</td>
+        <td class="{% if r.lost %}neg{% else %}muted{% endif %}">{{ r.lost|floatformat:"-1g" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="note mt-2 mb-0">Une marge en orange signifie moins de 15 % : pensez à revoir le prix de vente ou le prix d'achat.</p>
+
+{% include "analytics/_pager.html" %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🍺</div>
+  <h2 class="h5">Aucune vente de produit sur cette période</h2>
+  <p class="text-secondary">Essayez une autre période ou un autre mot de recherche.</p>
+  <a href="?" class="btn btn-outline-secondary rounded-pill">Réinitialiser les filtres</a>
+</div>
+{% endif %}
+
+{% endblock %}

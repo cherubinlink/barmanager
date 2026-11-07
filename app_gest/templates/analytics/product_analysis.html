@@ -1,0 +1,108 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}{{ pb.product.name }} : analyse{% endblock %}
+{% block page_title %}{{ pb.product.name }}{% endblock %}
+{% block page_sub %}{{ pb.product.category.name }}{% if pb.product.brand %}, {{ pb.product.brand }}{% endif %}. Ventes des 60 derniers jours.{% endblock %}
+
+{% block extra_css %}
+{% include "analytics/_styles.html" %}
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'analytics:product_stats' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Ventes par produit</a>
+  <a href="{% url 'catalog:product_detail' pb.pk %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-box-seam"></i> Fiche produit</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="kpis">
+  <div class="kpi main"><span class="k-l">Prix de vente</span><b class="k-v">{{ pb.sale_price_fcfa|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">Achat : {{ pb.purchase_price_fcfa|floatformat:"0g" }} FCFA</span></div>
+  <div class="kpi"><span class="k-l">Quantité vendue</span><b class="k-v">{{ total_qty|floatformat:"-1g" }}</b><span class="k-s">Pertes : {{ total_lost|floatformat:"-1g" }}</span></div>
+  <div class="kpi"><span class="k-l">Chiffre d'affaires</span><b class="k-v">{{ total_revenue|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">&nbsp;</span></div>
+  <div class="kpi"><span class="k-l">Marge brute</span><b class="k-v {% if total_margin < 0 %}neg{% endif %}">{{ total_margin|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{% if total_revenue %}{% widthratio total_margin total_revenue 100 %} % du chiffre d'affaires{% endif %}</span></div>
+  <div class="kpi">
+    <span class="k-l">En stock</span>
+    <b class="k-v {% if stock <= 0 %}neg{% elif stock <= pb.low_stock_threshold %}warn{% endif %}">{{ stock|floatformat:"-1g" }}</b>
+    <span class="k-s">{% if stock <= 0 %}Rupture{% elif stock <= pb.low_stock_threshold %}Stock bas (seuil : {{ pb.low_stock_threshold|floatformat:"-1g" }}){% else %}Valeur : {{ stock_value|floatformat:"0g" }} FCFA{% endif %}</span>
+  </div>
+</div>
+
+{% if daily %}
+<section class="card-bar block">
+  <div class="block-h"><h2>Ventes par jour</h2><small>Quantités vendues</small></div>
+  <div class="cols" data-chart role="img" aria-label="Quantités vendues par jour">
+    {% for d in daily %}
+    <div class="col" title="{{ d.business_date|date:'d/m/Y' }} : {{ d.qty_sold|floatformat:'-1g' }} vendu{{ d.qty_sold|pluralize }}, {{ d.revenue_fcfa|floatformat:'0g' }} FCFA">
+      <div class="bar"><i data-v="{{ d.qty_sold|unlocalize }}"></i></div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="axis"><span>{{ daily.0.business_date|date:"d/m" }}</span><span>Seuls les jours où le produit a bougé sont affichés</span><span>{{ daily|last|date:"d/m" }}</span></div>
+</section>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card-bar">
+    <div class="block-h"><h2>Prévision de la semaine</h2>{% if forecast %}<small>Fiabilité {% widthratio forecast.confidence 1 100 %} %</small>{% endif %}</div>
+    {% if forecast %}
+    <ul class="list-unstyled mb-0">
+      <li class="d-flex justify-content-between py-2 border-bottom"><span class="text-secondary">Quantité attendue</span><b>{{ forecast.predicted_qty|floatformat:"-1g" }}</b></li>
+      <li class="d-flex justify-content-between py-2 border-bottom"><span class="text-secondary">Chiffre d'affaires attendu</span><b>{{ forecast.predicted_revenue_fcfa|default_if_none:0|floatformat:"0g" }} FCFA</b></li>
+      <li class="d-flex justify-content-between py-2 border-bottom"><span class="text-secondary">Rupture probable</span>
+        <b>{% if forecast.predicted_stockout_date %}{{ forecast.predicted_stockout_date|date:"d/m/Y" }}{% else %}Pas de rupture prévue{% endif %}</b></li>
+      <li class="d-flex justify-content-between py-2"><span class="text-secondary">Quantité à commander</span><b class="{% if forecast.suggested_order_qty %}warn{% endif %}">{{ forecast.suggested_order_qty|default_if_none:0|floatformat:"-1g" }}</b></li>
+    </ul>
+    {% else %}
+    <p class="text-secondary mb-0">Pas de prévision pour ce produit. Il faut au moins 14 jours de ventes pour la calculer.</p>
+    {% endif %}
+  </section>
+
+  <section class="card-bar">
+    <div class="block-h"><h2>Recommandations</h2><a href="{% url 'analytics:recommendation_list' %}">Tout voir</a></div>
+    {% for r in recommendations %}
+    <div class="py-2 {% if not forloop.last %}border-bottom{% endif %}">
+      <span class="chip {% if r.priority == 1 %}chip-prio1{% elif r.priority == 2 %}chip-prio2{% else %}chip-prio3{% endif %}">{{ r.get_kind_display }}</span>
+      <div class="mt-1"><b>{{ r.title }}</b></div>
+      <div class="text-secondary small">{{ r.message }}</div>
+    </div>
+    {% empty %}
+    <p class="text-secondary mb-0">Rien à signaler sur ce produit pour le moment.</p>
+    {% endfor %}
+  </section>
+</div>
+
+{% if daily %}
+<section class="block">
+  <div class="block-h"><h2>Détail par jour</h2><small>{{ daily|length }} jour{{ daily|length|pluralize }}</small></div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Vendus</th><th>Chiffre d'affaires</th><th>Coût</th><th>Marge</th><th>Pertes (qté)</th></tr></thead>
+      <tbody>
+        {% for d in daily reversed %}
+        <tr>
+          <td>{{ d.business_date|date:"l d/m/Y" }}</td>
+          <td>{{ d.qty_sold|floatformat:"-1g" }}</td>
+          <td>{{ d.revenue_fcfa|floatformat:"0g" }}</td>
+          <td>{{ d.cogs_fcfa|floatformat:"0g" }}</td>
+          <td class="{% if d.margin_fcfa < 0 %}neg{% else %}pos{% endif %}">{{ d.margin_fcfa|floatformat:"0g" }}</td>
+          <td class="{% if d.qty_lost %}neg{% else %}muted{% endif %}">{{ d.qty_lost|floatformat:"-1g" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">🍺</div>
+  <h2 class="h5">Aucune vente sur les 60 derniers jours</h2>
+  <p class="text-secondary">Ce produit n'a pas été vendu récemment. Pensez à le mettre en avant ou à le désactiver.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% include "analytics/_charts.html" %}
+{% endblock %}

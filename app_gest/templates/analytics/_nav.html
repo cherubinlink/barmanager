@@ -1,0 +1,7 @@
+<div class="pills" role="navigation" aria-label="Analyses">
+  <a href="{% url 'analytics:dashboard' %}" class="{% if active == 'dashboard' %}on{% endif %}">Vue d'ensemble</a>
+  <a href="{% url 'analytics:summary_list' %}" class="{% if active == 'summaries' %}on{% endif %}">Journées</a>
+  <a href="{% url 'analytics:product_stats' %}" class="{% if active == 'products' %}on{% endif %}">Produits</a>
+  <a href="{% url 'analytics:forecast_list' %}" class="{% if active == 'forecasts' %}on{% endif %}">Prévisions</a>
+  <a href="{% url 'analytics:recommendation_list' %}" class="{% if active == 'recommendations' %}on{% endif %}">Recommandations{% if new_recos %} <span class="n">{{ new_recos }}</span>{% endif %}</a>
+</div>

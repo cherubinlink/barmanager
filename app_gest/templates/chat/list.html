@@ -1,0 +1,123 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Messagerie{% endblock %}
+{% block page_title %}Messagerie{% endblock %}
+{% block page_sub %}{% if unread_total %}{{ unread_total }} message{{ unread_total|pluralize }} non lu{{ unread_total|pluralize }}.{% else %}Vous êtes à jour.{% endif %} Discutez avec votre équipe sans quitter l'application.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 460px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .conv-list { max-width: 820px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .crow { display: flex; align-items: center; gap: .9rem; padding: .9rem 1.1rem; text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); transition: background .2s; }
+  .crow:last-child { border-bottom: 0; }
+  .crow:hover { background: var(--surface-2); color: var(--ink); }
+  .c-av { flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; }
+  .c-av.kind-channel { background: var(--accent); color: var(--accent-ink); } .c-av.kind-group { background: var(--surface-2); }
+  .c-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+  .c-top, .c-bot { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+  .c-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .c-time { color: var(--muted); font-size: .78rem; white-space: nowrap; }
+  .c-prev { color: var(--muted); font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .has-unread .c-title, .has-unread .c-prev { font-weight: 700; color: var(--ink); }
+  .c-badges { display: flex; align-items: center; gap: .4rem; color: var(--muted); flex: none; }
+  .c-unread { min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: .75rem; font-weight: 700; }
+  .c-unread.muted { background: var(--surface-2); color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; max-width: 820px; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'chat:member_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-person-lines-fill"></i> Écrire à un collègue</a>
+  <a href="{% url 'chat:group_create' %}" class="btn btn-primary"><i class="bi bi-people"></i> Nouveau groupe</a>
+{% endblock %}
+
+{% block content %}
+<div class="filters">
+  <div class="search-box"><i class="bi bi-search"></i><input type="search" id="convSearch" placeholder="Chercher une conversation" aria-label="Chercher une conversation"></div>
+  <span class="ms-auto text-secondary small" id="wsState"></span>
+</div>
+
+{% if rows %}
+<div class="conv-list" id="convList">
+  {% for r in rows %}
+  <a href="{% url 'chat:conversation_detail' r.conversation.pk %}" class="crow {% if r.unread and not r.is_muted %}has-unread{% endif %}"
+     data-conv="{{ r.conversation.pk|unlocalize }}" data-title="{{ r.title|lower }}">
+    <span class="c-av kind-{{ r.conversation.kind|lower }}">{% if r.conversation.kind == 'CHANNEL' %}<i class="bi bi-megaphone"></i>{% elif r.conversation.kind == 'GROUP' %}<i class="bi bi-people-fill"></i>{% else %}{{ r.title|slice:":1"|upper }}{% endif %}</span>
+    <span class="c-main">
+      <span class="c-top"><b class="c-title">{{ r.title }}</b><time class="c-time" data-iso="{{ r.conversation.last_message_at|date:'c' }}"></time></span>
+      <span class="c-bot">
+        <span class="c-prev">{% if r.conversation.last_message_preview %}{{ r.conversation.last_message_preview }}{% else %}Aucun message pour le moment{% endif %}</span>
+        <span class="c-badges">{% if r.is_muted %}<i class="bi bi-bell-slash" title="En sourdine"></i>{% endif %}<span class="c-unread {% if r.is_muted %}muted{% endif %}" {% if not r.unread %}hidden{% endif %}>{{ r.unread }}</span></span>
+      </span>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card-bar empty-state">
+  <div style="font-size:2.6rem">💬</div>
+  <h2 class="h5">Aucune conversation</h2>
+  <p class="text-secondary">Écrivez à un collègue ou créez un groupe pour commencer.</p>
+  <a href="{% url 'chat:member_list' %}" class="btn btn-primary"><i class="bi bi-person-lines-fill"></i> Écrire à un collègue</a>
+</div>
+{% endif %}
+
+<script>window.CHAT_LIST = { me: {{ user.id|unlocalize }}, ws: "{{ ws_path }}" };</script>
+{% endblock %}
+
+{% block extra_js %}
+{% verbatim %}
+<script>
+(function () {
+  var C = window.CHAT_LIST, list = document.getElementById('convList');
+  function fmt(iso) {
+    var d = new Date(iso), n = new Date(), diff = (n - d) / 1000;
+    if (diff < 60) return "à l'instant";
+    if (d.toDateString() === n.toDateString()) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    var y = new Date(n); y.setDate(n.getDate() - 1);
+    if (d.toDateString() === y.toDateString()) return 'hier';
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+  function paint() { document.querySelectorAll('time[data-iso]').forEach(function (t) { t.textContent = t.dataset.iso ? fmt(t.dataset.iso) : ''; }); }
+  paint(); setInterval(paint, 60000);
+
+  var search = document.getElementById('convSearch');
+  if (search) search.addEventListener('input', function () {
+    var q = search.value.trim().toLowerCase();
+    document.querySelectorAll('.crow').forEach(function (r) { r.style.display = !q || r.dataset.title.indexOf(q) !== -1 ? '' : 'none'; });
+  });
+
+  var LABELS = { IMAGE: '[Image]', FILE: '[Fichier]', TICKET_REF: '[Ticket partagé]', PRODUCT_REF: '[Produit partagé]' };
+  function onMessage(m) {
+    var row = list && list.querySelector('.crow[data-conv="' + m.conversation_id + '"]');
+    if (!row) { setTimeout(function () { location.reload(); }, 400); return; }
+    row.querySelector('.c-prev').textContent = m.deleted ? '' : (m.body || LABELS[m.kind] || '');
+    var t = row.querySelector('time'); t.dataset.iso = m.created_at; t.textContent = fmt(m.created_at);
+    if (m.sender_id !== C.me) {
+      var b = row.querySelector('.c-unread'); b.textContent = (parseInt(b.textContent, 10) || 0) + 1; b.hidden = false;
+      if (!b.classList.contains('muted')) row.classList.add('has-unread');
+    }
+    list.insertBefore(row, list.firstChild);
+  }
+
+  var ws, retry = 0, ping, state = document.getElementById('wsState');
+  function connect() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + C.ws);
+    ws.onopen = function () { retry = 0; if (state) state.textContent = ''; ping = setInterval(function () { if (ws.readyState === 1) ws.send(JSON.stringify({ action: 'ping' })); }, 30000); };
+    ws.onmessage = function (e) {
+      var ev; try { ev = JSON.parse(e.data); } catch (x) { return; }
+      if (ev.event === 'message.new') onMessage(ev.message);
+      else if (ev.event === 'conversation.joined') setTimeout(function () { location.reload(); }, 400);
+    };
+    ws.onclose = function () { clearInterval(ping); if (state) state.textContent = 'Reconnexion…'; setTimeout(connect, Math.min(1000 * Math.pow(2, retry++), 15000)); };
+  }
+  connect();
+})();
+</script>
+{% endverbatim %}
+{% endblock %}

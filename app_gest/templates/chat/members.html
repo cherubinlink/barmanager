@@ -1,0 +1,87 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Équipe{% endblock %}
+{% block page_title %}Écrire à un collègue{% endblock %}
+{% block page_sub %}Les membres de votre bar. Un clic ouvre une discussion privée.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1.25rem; }
+  .filters .search-box { position: relative; flex: 1; min-width: 220px; max-width: 420px; }
+  .filters .search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .filters .search-box input { width: 100%; padding: .65rem 1rem .65rem 2.6rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .filters .search-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+  .mcard { display: flex; align-items: center; gap: .9rem; padding: var(--pad); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); transition: border-color .25s, transform .25s var(--ease); }
+  .mcard:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .m-av { position: relative; flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; }
+  .dot { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 50%; background: var(--muted); border: 2px solid var(--surface); }
+  .dot.on { background: #3FAE6A; }
+  .m-info { flex: 1; min-width: 0; }
+  .m-info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-info small { color: var(--muted); }
+  .mcard form { margin: 0; }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'chat:conversation_list' %}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-left"></i> Conversations</a>
+  <a href="{% url 'chat:group_create' %}" class="btn btn-primary"><i class="bi bi-people"></i> Nouveau groupe</a>
+{% endblock %}
+
+{% block content %}
+{% if rows %}
+<div class="filters">
+  <div class="search-box"><i class="bi bi-search"></i><input type="search" id="memberSearch" placeholder="Chercher un collègue" aria-label="Chercher un collègue"></div>
+  <span class="ms-auto text-secondary small">{{ rows|length }} collègue{{ rows|length|pluralize }}</span>
+</div>
+
+<div class="mgrid" id="mgrid">
+  {% for u, status in rows %}
+  <div class="mcard" data-name="{% firstof u.get_full_name u.get_username %}">
+    <div class="m-av">{% firstof u.first_name u.get_username as ini %}{{ ini|slice:":1"|upper }}<span class="dot {% if status == 'ONLINE' %}on{% endif %}" data-uid="{{ u.id|unlocalize }}"></span></div>
+    <div class="m-info">
+      <b>{% firstof u.get_full_name u.get_username %}</b>
+      <small class="m-status" data-uid="{{ u.id|unlocalize }}">{% if status == 'ONLINE' %}En ligne{% else %}Hors ligne{% endif %}</small>
+    </div>
+    <form method="post" action="{% url 'chat:direct_start' %}">
+      {% csrf_token %}<input type="hidden" name="user_id" value="{{ u.id|unlocalize }}">
+      <button type="submit" class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-chat-dots"></i> Écrire</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card-bar empty-state">
+  <div style="font-size:2.6rem">👥</div>
+  <h2 class="h5">Vous êtes seul dans ce bar pour l'instant</h2>
+  <p class="text-secondary">Ajoutez des collaborateurs pour discuter avec eux.</p>
+  <a href="{% url 'accounts:team' %}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Gérer l'équipe</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var search = document.getElementById('memberSearch');
+    if (search) search.addEventListener('input', function () {
+      var q = search.value.trim().toLowerCase();
+      document.querySelectorAll('.mcard').forEach(function (c) { c.style.display = !q || c.dataset.name.toLowerCase().indexOf(q) !== -1 ? '' : 'none'; });
+    });
+
+    // Présence : actualisée toutes les 30 secondes
+    function refresh() {
+      if (document.hidden) return;
+      fetch("{% url 'chat:api_presence' %}", { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+        var on = {}; d.online.forEach(function (id) { on[id] = true; });
+        document.querySelectorAll('.dot[data-uid]').forEach(function (dot) { dot.classList.toggle('on', !!on[dot.dataset.uid]); });
+        document.querySelectorAll('.m-status[data-uid]').forEach(function (s) { s.textContent = on[s.dataset.uid] ? 'En ligne' : 'Hors ligne'; });
+      }).catch(function () {});
+    }
+    setInterval(refresh, 30000);
+  })();
+</script>
+{% endblock %}

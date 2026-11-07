@@ -1,0 +1,211 @@
+{% extends "navigateur/base.html" %}
+{% load l10n %}
+
+{% block title %}Tableau de bord{% endblock %}
+{% block page_title %}Tableau de bord{% endblock %}
+{% block page_sub %}Du {{ start|date:"d/m/Y" }} au {{ end|date:"d/m/Y" }}, comparé à la période précédente de même durée.{% endblock %}
+
+{% block extra_css %}
+{% include "analytics/_styles.html" %}
+{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="{% url 'analytics:stats_refresh' %}" class="m-0">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-repeat"></i> Actualiser les chiffres</button>
+  </form>
+{% endblock %}
+
+{% block content %}
+
+{% include "analytics/_nav.html" with active="dashboard" %}
+
+<form method="get" class="filters">
+  {% include "analytics/_range_fields.html" %}
+  <button type="submit" class="btn btn-primary rounded-pill">Appliquer</button>
+</form>
+
+{# Aujourd'hui, calculé en direct (les résumés sont enregistrés la nuit) #}
+<div class="kpis">
+  <div class="kpi main">
+    <span class="k-l">Aujourd'hui, {{ today|date:"l d F" }}</span>
+    <b class="k-v">{{ live.revenue_fcfa|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">{{ live.tickets_count }} ticket{{ live.tickets_count|pluralize }}, marge {{ live.gross_margin_fcfa|floatformat:"0g" }} FCFA</span>
+  </div>
+  <div class="kpi">
+    <span class="k-l">Encaissé aujourd'hui</span>
+    <b class="k-v">{{ live.collected_fcfa|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">{% if live.credit_granted_fcfa %}dont {{ live.credit_granted_fcfa|floatformat:"0g" }} FCFA à crédit non encaissés{% else %}aucun crédit accordé{% endif %}</span>
+  </div>
+  <div class="kpi">
+    <span class="k-l">Pertes aujourd'hui</span>
+    <b class="k-v {% if live.losses_fcfa %}neg{% endif %}">{{ live.losses_fcfa|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">{% if live.peak_hour is not None %}Heure de pointe : {{ live.peak_hour }}h{% else %}Pas encore de vente{% endif %}</span>
+  </div>
+</div>
+
+{% if totals.days == 0 %}
+<div class="card-bar empty-state">
+  <div class="e-ico">📊</div>
+  <h2 class="h5">Aucune journée enregistrée sur cette période</h2>
+  <p class="text-secondary">Les chiffres sont calculés chaque nuit. Pour voir ceux d'hier et d'aujourd'hui tout de suite, utilisez « Actualiser les chiffres », ou choisissez une autre période.</p>
+</div>
+{% else %}
+
+<div class="kpis">
+  <div class="kpi main">
+    <span class="k-l">Chiffre d'affaires</span>
+    <b class="k-v">{{ totals.revenue|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">{% include "analytics/_delta.html" with value=changes.revenue %}</span>
+  </div>
+  <div class="kpi">
+    <span class="k-l">Marge brute</span>
+    <b class="k-v">{{ totals.margin|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">{% if totals.margin_pct is not None %}{{ totals.margin_pct|floatformat:"-1" }} % du chiffre d'affaires. {% endif %}{% include "analytics/_delta.html" with value=changes.margin %}</span>
+  </div>
+  <div class="kpi">
+    <span class="k-l">Tickets</span>
+    <b class="k-v">{{ totals.tickets|floatformat:"0g" }}</b>
+    <span class="k-s">{% include "analytics/_delta.html" with value=changes.tickets %}</span>
+  </div>
+  <div class="kpi">
+    <span class="k-l">Ticket moyen</span>
+    <b class="k-v">{{ totals.avg_ticket|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">{% include "analytics/_delta.html" with value=changes.avg_ticket %}</span>
+  </div>
+  <div class="kpi">
+    <span class="k-l">Encaissé</span>
+    <b class="k-v">{{ totals.collected|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">Crédit accordé : {{ totals.credit|floatformat:"0g" }} FCFA</span>
+  </div>
+  <div class="kpi">
+    <span class="k-l">Pertes</span>
+    <b class="k-v {% if totals.losses %}neg{% endif %}">{{ totals.losses|floatformat:"0g" }} <small>FCFA</small></b>
+    <span class="k-s">Moyenne par jour ouvert : {{ totals.avg_day|floatformat:"0g" }} FCFA de ventes</span>
+  </div>
+</div>
+
+<section class="card-bar block">
+  <div class="block-h">
+    <h2>Chiffre d'affaires par jour</h2>
+    <a href="{% url 'analytics:summary_list' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}">Voir le détail des journées</a>
+  </div>
+  <div class="cols" data-chart role="img" aria-label="Chiffre d'affaires par jour">
+    {% for s in series %}
+    <div class="col" title="{{ s.date }} : {% if s.open %}{{ s.revenue|floatformat:'0g' }} FCFA, {{ s.tickets }} ticket{{ s.tickets|pluralize }}{% else %}fermé{% endif %}">
+      <div class="bar"><i data-v="{{ s.revenue|unlocalize }}" {% if not s.open %}class="off"{% endif %}></i></div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="axis"><span>{{ start|date:"d/m" }}</span><span>Les jours sans activité sont en gris</span><span>{{ end|date:"d/m" }}</span></div>
+</section>
+
+<div class="grid-2">
+  <section class="card-bar">
+    <div class="block-h"><h2>Jours de la semaine</h2><small>Moyenne par jour ouvert</small></div>
+    <div class="cols few" data-chart role="img" aria-label="Chiffre d'affaires moyen par jour de la semaine">
+      {% for w in weekdays %}
+      <div class="col" title="{{ w.label }} : {{ w.revenue|floatformat:'0g' }} FCFA en moyenne ({{ w.days }} jour{{ w.days|pluralize }})">
+        <div class="bar"><i data-v="{{ w.revenue|unlocalize }}"></i></div>
+        <small>{{ w.label|slice:":3" }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card-bar">
+    <div class="block-h"><h2>Heures de vente</h2><small>Chiffre d'affaires par heure</small></div>
+    <div class="cols" data-chart role="img" aria-label="Chiffre d'affaires par heure">
+      {% for h in hours %}
+      <div class="col" title="{{ h.hour }}h : {{ h.revenue|floatformat:'0g' }} FCFA">
+        <div class="bar"><i data-v="{{ h.revenue|unlocalize }}"></i></div>
+        <small>{{ h.hour }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="grid-2">
+  <section class="block">
+    <div class="block-h"><h2>Produits les plus vendus</h2><a href="{% url 'analytics:product_stats' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}">Tout voir</a></div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Produit</th><th>Vendus</th><th>CA</th><th>Marge</th></tr></thead>
+        <tbody>
+          {% for r in top_products %}
+          <tr>
+            <td><a class="row-link" href="{% url 'analytics:product_analysis' r.product_bar_id %}">{{ r.name }}</a><span class="sub">{{ r.category }}</span></td>
+            <td>{{ r.qty|floatformat:"-1g" }}</td>
+            <td>{{ r.revenue|floatformat:"0g" }}</td>
+            <td class="{% if r.margin < 0 %}neg{% else %}pos{% endif %}">{{ r.margin|floatformat:"0g" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="muted">Aucune vente sur cette période.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-h"><h2>Produits qui se vendent le moins</h2><small>Parmi ceux vendus sur la période</small></div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Produit</th><th>Vendus</th><th>CA</th><th>Marge</th></tr></thead>
+        <tbody>
+          {% for r in slow_products %}
+          <tr>
+            <td><a class="row-link" href="{% url 'analytics:product_analysis' r.product_bar_id %}">{{ r.name }}</a><span class="sub">{{ r.category }}</span></td>
+            <td>{{ r.qty|floatformat:"-1g" }}</td>
+            <td>{{ r.revenue|floatformat:"0g" }}</td>
+            <td class="{% if r.margin < 0 %}neg{% else %}pos{% endif %}">{{ r.margin|floatformat:"0g" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="muted">Aucune vente sur cette période.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+{% endif %}
+
+<section class="block">
+  <div class="block-h"><h2>Prévisions de chiffre d'affaires</h2><a href="{% url 'analytics:forecast_list' %}">Voir les prévisions</a></div>
+  {% if forecast_days %}
+  <div class="tiles">
+    {% for f in forecast_days %}
+    <div class="tile">
+      <div class="t-d">{{ f.target_start|date:"l d/m" }}</div>
+      <div class="t-v">{{ f.predicted_revenue_fcfa|default_if_none:0|floatformat:"0g" }}</div>
+      <div class="t-s">FCFA{% if f.confidence is not None %}, fiabilité {% widthratio f.confidence 1 100 %} %{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card-bar"><p class="mb-0 text-secondary">Il faut au moins 14 jours de ventes pour calculer des prévisions.</p></div>
+  {% endif %}
+</section>
+
+<section class="block">
+  <div class="block-h"><h2>Recommandations à traiter</h2><a href="{% url 'analytics:recommendation_list' %}">Tout voir{% if new_recos %} ({{ new_recos }} nouvelle{{ new_recos|pluralize }}){% endif %}</a></div>
+  {% for r in recommendations %}
+  <div class="card-bar mb-2 d-flex gap-3 align-items-start">
+    <span class="chip {% if r.priority == 1 %}chip-prio1{% elif r.priority == 2 %}chip-prio2{% else %}chip-prio3{% endif %}">{{ r.get_kind_display }}</span>
+    <div class="flex-grow-1">
+      <b>{{ r.title }}</b>
+      <div class="text-secondary small">{{ r.message }}</div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card-bar"><p class="mb-0 text-secondary">Aucune recommandation en attente. Lancez une analyse depuis la page Recommandations.</p></div>
+  {% endfor %}
+</section>
+
+{% endblock %}
+
+{% block extra_js %}
+{% include "analytics/_charts.html" %}
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Recommandations{% endblock %}
+{% block page_title %}Recommandations{% endblock %}
+{% block page_sub %}Des actions concrètes pour mieux vendre, mieux acheter et limiter les risques.{% endblock %}
+
+{% block extra_css %}
+{% include "analytics/_styles.html" %}
+<style>
+  .reco { display: flex; gap: 1rem; align-items: flex-start; padding: var(--pad); margin-bottom: .75rem; background: var(--surface); border: 1px solid var(--line); border-left-width: 4px; border-radius: var(--radius); box-shadow: var(--shadow); }
+  .reco.p1 { border-left-color: #E5534B; } .reco.p2 { border-left-color: #E8991C; } .reco.p3, .reco.p4 { border-left-color: var(--accent); }
+  .reco.done { opacity: .6; }
+  .reco .r-body { flex: 1; min-width: 0; }
+  .reco .r-top { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: .35rem; }
+  .reco h3 { font-size: 1.02rem; font-weight: 700; margin: 0 0 .25rem; }
+  .reco p { margin: 0; color: var(--muted); }
+  .reco .r-meta { margin-top: .5rem; color: var(--muted); font-size: .82rem; display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+  .reco .r-meta a { color: var(--accent); text-decoration: none; }
+  .reco .r-acts { display: flex; flex-direction: column; gap: .4rem; flex: none; }
+  .reco .r-acts form { margin: 0; }
+  @media (max-width: 767.98px) { .reco { flex-direction: column; } .reco .r-acts { flex-direction: row; flex-wrap: wrap; } }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="{% url 'analytics:recommendation_refresh' %}" class="m-0">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-stars"></i> Analyser maintenant</button>
+  </form>
+{% endblock %}
+
+{% block content %}
+
+{% include "analytics/_nav.html" with active="recommendations" new_recos=new_count %}
+
+<form method="get" class="filters">
+  <input type="hidden" name="state" value="{{ state }}">
+  <select name="kind" class="form-select" aria-label="Type de recommandation" onchange="this.form.submit()">
+    <option value="">Tous les types</option>
+    {% for v, label in kinds %}<option value="{{ v }}" {% if kind == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  {% if kind or state != "actives" %}<a href="?" class="btn btn-link text-decoration-none">Réinitialiser</a>{% endif %}
+  <span class="count">{{ page.paginator.count }} recommandation{{ page.paginator.count|pluralize }}</span>
+</form>
+
+<div class="pills">
+  <a href="?state=actives&kind={{ kind|urlencode }}" class="{% if state == 'actives' %}on{% endif %}">À traiter{% if new_count %} <span class="n">{{ new_count }}</span>{% endif %}</a>
+  {% for v, label in statuses %}
+  <a href="?state={{ v }}&kind={{ kind|urlencode }}" class="{% if state == v %}on{% endif %}">{{ label }}s</a>
+  {% endfor %}
+  <a href="?state=toutes&kind={{ kind|urlencode }}" class="{% if state == 'toutes' %}on{% endif %}">Toutes</a>
+</div>
+
+{% if page.object_list %}
+  {% for r in page.object_list %}
+  <article class="reco p{{ r.priority }} {% if r.status == 'APPLIED' or r.status == 'DISMISSED' %}done{% endif %}">
+    <div class="r-body">
+      <div class="r-top">
+        <span class="chip {% if r.priority == 1 %}chip-prio1{% elif r.priority == 2 %}chip-prio2{% else %}chip-prio3{% endif %}">{% if r.priority == 1 %}Urgent{% elif r.priority == 2 %}Important{% elif r.priority == 3 %}Normal{% else %}Suggestion{% endif %}</span>
+        <span class="chip chip-neutral">{{ r.get_kind_display }}</span>
+        {% if r.status == 'NEW' %}<span class="chip chip-prio3">Nouvelle</span>{% elif r.status != 'SEEN' %}<span class="chip chip-neutral">{{ r.get_status_display }}</span>{% endif %}
+      </div>
+      <h3>{{ r.title }}</h3>
+      <p>{{ r.message }}</p>
+      <div class="r-meta">
+        {% if r.product_bar_id %}<a href="{% url 'analytics:product_analysis' r.product_bar_id %}"><i class="bi bi-graph-up"></i> Voir l'analyse de {{ r.product_bar.product.name }}</a>{% endif %}
+        <span>Créée le {{ r.created_at|date:"d/m/Y" }}</span>
+        {% if r.valid_until %}<span>Valable jusqu'au {{ r.valid_until|date:"d/m/Y" }}</span>{% endif %}
+      </div>
+    </div>
+    {% if r.status == 'NEW' or r.status == 'SEEN' %}
+    <div class="r-acts">
+      <form method="post" action="{% url 'analytics:recommendation_status' r.pk %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="status" value="APPLIED">
+        <button type="submit" class="btn btn-sm btn-primary rounded-pill w-100"><i class="bi bi-check-lg"></i> Appliquée</button>
+      </form>
+      {% if r.status == 'NEW' %}
+      <form method="post" action="{% url 'analytics:recommendation_status' r.pk %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="status" value="SEEN">
+        <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill w-100"><i class="bi bi-eye"></i> Marquer comme vue</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{% url 'analytics:recommendation_status' r.pk %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="status" value="DISMISSED">
+        <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill w-100"><i class="bi bi-x-lg"></i> Ignorer</button>
+      </form>
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+
+  {% include "analytics/_pager.html" %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">💡</div>
+  {% if kind or state != "actives" %}
+    <h2 class="h5">Aucune recommandation ne correspond</h2>
+    <p class="text-secondary">Essayez un autre filtre.</p>
+    <a href="?" class="btn btn-outline-secondary rounded-pill">Voir les recommandations à traiter</a>
+  {% else %}
+    <h2 class="h5">Rien à traiter pour le moment</h2>
+    <p class="text-secondary">Lancez une analyse pour obtenir des conseils sur le stock, les prix, les promotions et les crédits clients.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

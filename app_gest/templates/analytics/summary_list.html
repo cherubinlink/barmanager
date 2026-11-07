@@ -1,0 +1,72 @@
+{% extends "navigateur/base.html" %}
+
+{% block title %}Journées{% endblock %}
+{% block page_title %}Journées{% endblock %}
+{% block page_sub %}Le résultat de chaque journée d'activité, du {{ start|date:"d/m/Y" }} au {{ end|date:"d/m/Y" }}.{% endblock %}
+
+{% block extra_css %}
+{% include "analytics/_styles.html" %}
+{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'analytics:export_summaries' %}?{{ querystring }}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-download"></i> Exporter en CSV</a>
+{% endblock %}
+
+{% block content %}
+
+{% include "analytics/_nav.html" with active="summaries" %}
+
+<form method="get" class="filters">
+  {% include "analytics/_range_fields.html" %}
+  <button type="submit" class="btn btn-primary rounded-pill">Appliquer</button>
+  <span class="count">{{ page.paginator.count }} journée{{ page.paginator.count|pluralize }}</span>
+</form>
+
+{% if page.object_list %}
+
+<div class="kpis">
+  <div class="kpi main"><span class="k-l">Chiffre d'affaires</span><b class="k-v">{{ totals.revenue|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{{ totals.tickets|floatformat:"0g" }} ticket{{ totals.tickets|pluralize }}</span></div>
+  <div class="kpi"><span class="k-l">Marge brute</span><b class="k-v">{{ totals.margin|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{% if totals.margin_pct is not None %}{{ totals.margin_pct|floatformat:"-1" }} % du chiffre d'affaires{% endif %}</span></div>
+  <div class="kpi"><span class="k-l">Moyenne par jour ouvert</span><b class="k-v">{{ totals.avg_day|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">{{ totals.days }} jour{{ totals.days|pluralize }} ouvert{{ totals.days|pluralize }}</span></div>
+  <div class="kpi"><span class="k-l">Encaissé</span><b class="k-v">{{ totals.collected|floatformat:"0g" }} <small>FCFA</small></b><span class="k-s">Pertes : {{ totals.losses|floatformat:"0g" }} FCFA</span></div>
+</div>
+
+<div class="tbl-wrap">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Date</th><th>Tickets</th><th>Chiffre d'affaires</th><th>Coût</th><th>Marge</th>
+        <th>Pertes</th><th>Encaissé</th><th>Crédit accordé</th><th>Heure de pointe</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in page.object_list %}
+      <tr>
+        <td><a class="row-link" href="{% url 'analytics:summary_detail' s.pk %}">{{ s.business_date|date:"l d/m/Y" }}</a></td>
+        <td>{{ s.tickets_count }}</td>
+        <td>{{ s.revenue_fcfa|floatformat:"0g" }}</td>
+        <td>{{ s.cogs_fcfa|floatformat:"0g" }}</td>
+        <td class="{% if s.gross_margin_fcfa < 0 %}neg{% else %}pos{% endif %}">{{ s.gross_margin_fcfa|floatformat:"0g" }}</td>
+        <td class="{% if s.losses_fcfa %}neg{% else %}muted{% endif %}">{{ s.losses_fcfa|floatformat:"0g" }}</td>
+        <td>{{ s.collected_fcfa|floatformat:"0g" }}</td>
+        <td class="{% if s.credit_granted_fcfa %}warn{% else %}muted{% endif %}">{{ s.credit_granted_fcfa|floatformat:"0g" }}</td>
+        <td>{% if s.peak_hour is not None %}{{ s.peak_hour }}h{% else %}<span class="muted">-</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="note mt-2 mb-0">Montants en FCFA. Une journée sans activité n'apparaît pas : elle compte comme « bar fermé ».</p>
+
+{% include "analytics/_pager.html" %}
+
+{% else %}
+<div class="card-bar empty-state">
+  <div class="e-ico">📅</div>
+  <h2 class="h5">Aucune journée enregistrée sur cette période</h2>
+  <p class="text-secondary">Essayez une période plus large. Si vous venez de commencer à vendre, recalculez les chiffres depuis le tableau de bord.</p>
+  <a href="{% url 'analytics:dashboard' %}" class="btn btn-outline-secondary rounded-pill">Retour au tableau de bord</a>
+</div>
+{% endif %}
+
+{% endblock %}

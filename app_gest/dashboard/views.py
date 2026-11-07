@@ -50,7 +50,7 @@ ROLE_INTRO = {
 # (libellé, icône, nom d'URL, permission). Le bouton reste grisé tant que l'URL n'existe pas.
 QUICK_ACTIONS = [
     ("Nouveau ticket", "🧾", "sales:ticket_create", Perm.POS_SELL),
-    ("Commandes QR", "📱", "sales:qr_orders", Perm.POS_VALIDATE_QR),
+    ("Commandes QR", "📱", "sales:ticket_list", Perm.POS_VALIDATE_QR),
     ("Encaisser", "💵", "sales:ticket_list", Perm.POS_FINALIZE),
     ("Déclarer une perte", "🍾", "inventory:loss_create", Perm.LOSS_DECLARE),
     ("Valider les pertes", "✅", "inventory:loss_list", Perm.LOSS_APPROVE),
@@ -64,8 +64,8 @@ QUICK_ACTIONS = [
     ("Réglages du bar", "⚙️", "tenants:settings", Perm.BAR_SETTINGS),
     ("QR code du bar", "🔳", "tenants:qr", Perm.BAR_SETTINGS),
     ("Abonnement", "🔑", "tenants:subscription", Perm.SUBSCRIPTION_MANAGE),
-    ("Messagerie", "💬", "chat:inbox", Perm.CHAT_USE),
-    ("Statistiques", "📈", "analytics:overview", Perm.REPORT_VIEW),
+    ("Messagerie", "💬", "chat:conversation_list", Perm.CHAT_USE),
+    ("Statistiques", "📈", "analytics:dashboard", Perm.REPORT_VIEW),
 ]
 
 
