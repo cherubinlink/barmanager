@@ -1,0 +1,36 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hors ligne</title>
+  <meta name="theme-color" content="#E8991C">
+  <link rel="icon" type="image/png" href="{% static 'pwa/icons/favicon-32.png' %}">
+  <style>
+    :root { --bg: #FBF7F0; --ink: #2B2416; --muted: #7A6E58; --accent: #E8991C; --card: #FFFFFF; --line: #E8DFCB; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #1B1812; --ink: #F3ECDD; --muted: #A89C85; --card: #25211A; --line: #3A3427; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; background: var(--bg); color: var(--ink);
+           font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { width: min(440px, 100%); text-align: center; padding: 2rem 1.5rem; background: var(--card); border: 1px solid var(--line); border-radius: 22px; }
+    img { width: 88px; height: 88px; border-radius: 20px; }
+    h1 { font-size: 1.4rem; margin: 1.1rem 0 .4rem; }
+    p { color: var(--muted); line-height: 1.5; margin: .4rem 0; }
+    button { margin-top: 1.4rem; padding: .8rem 1.6rem; border: 0; border-radius: 999px; background: var(--accent); color: #2B1B00; font-weight: 700; font-size: 1rem; cursor: pointer; }
+    .status { margin-top: 1rem; font-size: .85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <img src="{% static 'pwa/icons/icon-192.png' %}" alt="">
+  <h1>Vous êtes hors ligne</h1>
+  <p>La connexion Internet est coupée. Les ventes, le stock et la messagerie ont besoin du réseau pour rester justes.</p>
+  <p>Vérifiez votre Wi-Fi ou vos données mobiles : la page se rechargera toute seule au retour de la connexion.</p>
+  <button type="button" onclick="location.reload()">Réessayer</button>
+  <p class="status" id="status" aria-live="polite"></p>
+</main>
+<script>
+  window.addEventListener('online', function () { document.getElementById('status').textContent = 'Connexion retrouvée…'; location.reload(); });
+</script>
+</body>
+</html>

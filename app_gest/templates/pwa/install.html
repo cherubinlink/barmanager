@@ -1,0 +1,101 @@
+{% comment %}
+   À inclure juste avant la fin du body de chaque page de base (include du gabarit pwa/install.html).
+   Enregistre le service worker, propose l'installation (Chrome, Edge, Samsung, Opera, Firefox Android)
+   et explique la marche à suivre sur iPhone et iPad (Safari ne propose pas de bouton automatique).
+{% endcomment %}
+<style>
+  .pwa-box { position: fixed; right: 1rem; bottom: calc(5.2rem + env(safe-area-inset-bottom, 0px)); z-index: 1080; max-width: min(360px, calc(100vw - 2rem));
+             padding: .8rem 1rem; border-radius: 16px; background: var(--surface, #fff); color: var(--ink, #222); border: 1px solid var(--line, #ddd);
+             box-shadow: 0 14px 40px -12px rgba(0,0,0,.45); font-size: .92rem; }
+  .pwa-box[hidden] { display: none; }
+  .pwa-box .row { display: flex; align-items: center; gap: .6rem; }
+  .pwa-box b { display: block; }
+  .pwa-box small { color: var(--muted, #777); }
+  .pwa-btn { border: 0; border-radius: 999px; padding: .5rem 1rem; font-weight: 700; background: var(--accent, #E8991C); color: var(--accent-ink, #2B1B00); cursor: pointer; white-space: nowrap; }
+  .pwa-x { border: 0; background: none; color: var(--muted, #777); font-size: 1.1rem; cursor: pointer; padding: .2rem .4rem; }
+</style>
+
+<div class="pwa-box" id="pwaInstall" hidden role="dialog" aria-label="Installer l'application">
+  <div class="row">
+    <div style="flex:1"><b>Installer BarManager</b><small>Ouvrez-le comme une vraie application, plein écran.</small></div>
+    <button type="button" class="pwa-btn" id="pwaInstallBtn">Installer</button>
+    <button type="button" class="pwa-x" data-pwa-close aria-label="Plus tard">&times;</button>
+  </div>
+</div>
+
+<div class="pwa-box" id="pwaIos" hidden role="dialog" aria-label="Installer sur iPhone">
+  <div class="row">
+    <div style="flex:1"><b>Installer sur iPhone / iPad</b>
+      <small>Touchez le bouton <b style="display:inline">Partager</b> (carré avec une flèche), puis <b style="display:inline">Sur l'écran d'accueil</b>.</small></div>
+    <button type="button" class="pwa-x" data-pwa-close aria-label="Fermer">&times;</button>
+  </div>
+</div>
+
+<div class="pwa-box" id="pwaUpdate" hidden role="status">
+  <div class="row">
+    <div style="flex:1"><b>Nouvelle version disponible</b><small>Actualisez pour en profiter.</small></div>
+    <button type="button" class="pwa-btn" id="pwaUpdateBtn">Actualiser</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  var KEY = 'pwa:dismissed';
+
+  function dismissed() { try { return Date.now() < parseInt(localStorage.getItem(KEY) || '0', 10); } catch (e) { return false; } }
+  function dismiss(days) { try { localStorage.setItem(KEY, String(Date.now() + days * 864e5)); } catch (e) {} }
+  document.querySelectorAll('[data-pwa-close]').forEach(function (b) {
+    b.addEventListener('click', function () { b.closest('.pwa-box').hidden = true; dismiss(7); });
+  });
+
+  /* ---- Service worker + mise à jour ---- */
+  if ('serviceWorker' in navigator) {
+    var refreshing = false, userAsked = false;
+    function offerUpdate(worker) {
+      $('pwaUpdate').hidden = false;
+      $('pwaUpdateBtn').onclick = function () { userAsked = true; worker.postMessage('SKIP_WAITING'); };
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (userAsked && !refreshing) { refreshing = true; location.reload(); }
+    });
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register("{% url 'pwa:service_worker' %}", { scope: '/' }).then(function (reg) {
+        if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+        reg.addEventListener('updatefound', function () {
+          var w = reg.installing;
+          if (!w) return;
+          w.addEventListener('statechange', function () {
+            if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w);
+          });
+        });
+        setInterval(function () { reg.update(); }, 3600000);          // vérifie une nouvelle version chaque heure
+      }).catch(function (e) { console.warn('Service worker non enregistré', e); });
+    });
+  }
+
+  /* ---- Installation (Chrome, Edge, Samsung Internet, Opera, Firefox Android) ---- */
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferred = e;
+    if (!standalone && !dismissed()) $('pwaInstall').hidden = false;
+  });
+  $('pwaInstallBtn').addEventListener('click', function () {
+    if (!deferred) return;
+    deferred.prompt();
+    deferred.userChoice.then(function (choice) {
+      deferred = null;
+      $('pwaInstall').hidden = true;
+      if (choice.outcome === 'dismissed') dismiss(7);
+    });
+  });
+  window.addEventListener('appinstalled', function () { $('pwaInstall').hidden = true; deferred = null; });
+
+  /* ---- iPhone / iPad : pas d'invite automatique, on explique le geste ---- */
+  var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIos && !standalone && !dismissed()) setTimeout(function () { $('pwaIos').hidden = false; }, 4000);
+})();
+</script>

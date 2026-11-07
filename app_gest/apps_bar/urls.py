@@ -22,6 +22,9 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
 
+    # instalation
+    path("", include("core.pwa_urls", namespace="pwa")),
+
     # apps
     path('', include('pages.urls', namespace='pages')),
     path('', include('accounts.urls', namespace='accounts')),
@@ -29,7 +32,7 @@ urlpatterns = [
     path('core/', include('core.urls', namespace='core')),
     path('tenants/', include('tenants.urls', namespace='tenants')),
     path('catalog/', include('catalog.urls', namespace='catalog')),
-    path('purchasing/', include('purchasing.urls', namespace='purchasing')),
+    path('stock/', include('purchasing.urls', namespace='purchasing')),
     path('inventory/', include('inventory.urls', namespace='inventory')),
     path('sales/', include('sales.urls', namespace='sales')),
     path('credits/', include('credits.urls', namespace='credits')),

@@ -56,7 +56,9 @@ INSTALLED_APPS = [
     'analytics',
     'pages',
     'dashboard',
+    
 ]
+PWA_VERSION = "1" 
 
 ASGI_APPLICATION = "apps_bar.asgi.application"
 

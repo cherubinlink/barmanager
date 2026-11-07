@@ -5,39 +5,49 @@ Chaque formule reprend les options de la précédente et en ajoute (comme sur la
 
 UNLIMITED = None   # utilisateurs illimités ; mettez 0 si votre champ max_users n'accepte pas null
 
-STARTER = ["products", "sales", "stock", "categories", "sales_history", "basic_dashboard"]
-BUSINESS = STARTER + ["suppliers", "purchases", "expenses", "profit_tracking", "periodic_reports", "customers"]
-PREMIUM = BUSINESS + ["cash_registers", "waiters", "performance", "credits", "stock_alerts",
-                      "losses", "exports", "advanced_reports"]
-ENTERPRISE = PREMIUM + ["multi_cash", "advanced_roles", "multi_establishments",
-                        "consolidated_reports", "activity_log", "strategic_dashboard", "priority_support"]
+STARTER = ["products", "categories", "sales", "sales_history", "stock", "losses", "purchases", "credits",
+           "qr_menu", "qr_orders", "chat", "roles", "basic_dashboard"]
+BUSINESS = STARTER + ["suppliers", "customers", "expenses", "profit_tracking", "periodic_reports",
+                      "exports", "chat_broadcast", "cash_registers","forecasts"]
+PREMIUM = BUSINESS + [ "waiters", "performance", "stock_alerts", "advanced_reports",
+                      "recommendations"]
+ENTERPRISE = PREMIUM + ["multi_cash", "advanced_roles", "multi_establishments", "consolidated_reports",
+                        "activity_log", "strategic_dashboard", "priority_support"]
 
 # clé -> libellé affiché (l'ordre ici est l'ordre d'affichage)
 FEATURE_LABELS = {
-    # Starter
+    # --- Starter ---
     "products": "Gestion des produits",
-    "sales": "Gestion des ventes",
-    "stock": "Gestion du stock",
     "categories": "Gestion des catégories",
+    "sales": "Caisse, tickets et gestion des ventes",
     "sales_history": "Historique des ventes",
+    "stock": "Gestion du stock et inventaire",
+    "losses": "Gestion des pertes et produits cassés",
+    "purchases": "Gestion des achats et commandes fournisseurs",
+    "credits": "Gestion des crédits clients",
+    "qr_menu": "Menu et prix par QR code",
+    "qr_orders": "Commandes des clients par QR code",
+    "chat": "Messagerie d'équipe",
+    "roles": "Rôles et permissions",
     "basic_dashboard": "Tableau de bord simple",
-    # Business
+    # --- Business ---
+    "cash_registers": "Gestion des caisses",
     "suppliers": "Gestion des fournisseurs",
-    "purchases": "Gestion des achats",
+    "customers": "Gestion des clients",
     "expenses": "Gestion des dépenses",
     "profit_tracking": "Suivi des bénéfices",
     "periodic_reports": "Rapports journaliers et mensuels",
-    "customers": "Gestion des clients",
-    # Premium
-    "cash_registers": "Gestion des caisses",
+    "exports": "Export Excel, PDF et CSV",
+    "chat_broadcast": "Messages à toute l'équipe",
+    "forecasts": "Prévisions de ventes et de ruptures",
+    # --- Premium ---
+    
     "waiters": "Gestion des serveurs",
     "performance": "Suivi des performances",
-    "credits": "Gestion des crédits clients",
     "stock_alerts": "Alertes de stock",
-    "losses": "Gestion des pertes et produits cassés",
-    "exports": "Export Excel et PDF",
     "advanced_reports": "Rapports avancés",
-    # Enterprise
+    "recommendations": "Recommandations automatiques",
+    # --- Enterprise ---
     "multi_cash": "Multi-caisses",
     "advanced_roles": "Gestion avancée des rôles et permissions",
     "multi_establishments": "Gestion multi-établissements",
@@ -48,14 +58,17 @@ FEATURE_LABELS = {
 }
 
 PLAN_CATALOG = [
-    {"name": "Starter", "price_fcfa": 2000, "max_users": 1,
-     "description": "Pour les petits bars et débits de boissons", "features": STARTER},
-    {"name": "Business", "price_fcfa": 5000, "max_users": 3,
-     "description": "Pour les bars en croissance", "features": BUSINESS},
-    {"name": "Premium", "price_fcfa": 10000, "max_users": 10,
-     "description": "Pour les bars et snacks professionnels", "features": PREMIUM},
-    {"name": "Enterprise", "price_fcfa": 20000, "max_users": UNLIMITED,
-     "description": "Pour les grands établissements", "features": ENTERPRISE},
+    {"code": "starter", "name": "Starter", "price_fcfa": 2000, "duration_days": 30, "max_users": 3,
+     "sort_order": 1, "features": STARTER, "description": "Tout pour gérer un petit bar au quotidien."},
+    {"code": "business", "name": "Business", "price_fcfa": 5000, "duration_days": 30, "max_users": 8,
+     "sort_order": 2, "features": BUSINESS,
+     "description": "Fournisseurs, dépenses, bénéfices et prévisions pour piloter votre activité."},
+    {"code": "premium", "name": "Premium", "price_fcfa": 10000, "duration_days": 30, "max_users": 20,
+     "sort_order": 3, "features": PREMIUM,
+     "description": "Caisses, serveurs, performances et conseils automatiques pour les grandes équipes."},
+    {"code": "enterprise", "name": "Enterprise", "price_fcfa": 25000, "duration_days": 30, "max_users": None,
+     "sort_order": 4, "features": ENTERPRISE,                 # None = utilisateurs illimités
+     "description": "Plusieurs établissements, rapports consolidés et assistance prioritaire."},
 ]
 
 

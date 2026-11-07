@@ -36,6 +36,8 @@ class Plan(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name} ({self.price_fcfa} FCFA / {self.duration_days} j)"
+    
+   
 
 
 class Bar(TimeStampedModel):
