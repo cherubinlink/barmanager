@@ -12,7 +12,7 @@ def manifest(request):
     name = getattr(settings, "SITE_NAME", "BarManager")
     data = {
         "id": "/",
-        "name": f"{name} :  barmanager",
+        "name": f"{name} :  gestion de bar",
         "short_name": name,
         "description": "Caisse, stock, achats, crédits, messagerie et statistiques pour votre bar.",
         "lang": "fr",
